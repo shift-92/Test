@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Back/Back.csproj" />
+  <Project Path="Common/Common.csproj" />
+  <Project Path="Front/Front.csproj" />
+  <Project Path="UniversalTables/UniversalTables.csproj" />
+</Solution>

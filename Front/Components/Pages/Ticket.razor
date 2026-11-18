@@ -1,0 +1,147 @@
+﻿@page "/Ticket"
+
+@page "/Ticket/{TicketId:guid}"
+@using Front.Tickets
+@using UniversalTables.Components
+@using UniversalTables.Models
+@using UniversalTables.Services
+@implements IDisposable
+@inject TicketEditor Editor
+@inject ModelRegistry Registry
+@inject DraftFactory Drafts
+@inject CommandDispatcher Dispatcher
+@inject IJSRuntime JS
+@inject ITableLayoutStore LayoutStore
+@inject NavigationManager Navigation
+
+<PageTitle>Редактор заявки</PageTitle>
+<MudText Typo="Typo.h4">Редактор изменений ИТ-системы</MudText>
+@if (_error is not null)
+{
+    <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+@if (TicketId is null)
+{
+    <MudTextField T="string" Label="ID ИТ-системы" @bind-Value="_systemId" Immediate="true" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || !Valid(_systemId))" OnClick="CreateAsync">Создать заявку</MudButton>
+    <MudTextField T="string" Label="ID существующей заявки" @bind-Value="_existingId" Immediate="true" />
+    <MudButton Disabled="@(_busy || !Valid(_existingId))" OnClick="OpenExisting">Открыть заявку</MudButton>
+}
+else
+{
+    <MudText Typo="Typo.subtitle1">Заявка @TicketId</MudText>
+    <MudLink Href="Ticket">К выбору заявки</MudLink>
+    @if (_session is { } session && _workspace is { } workspace)
+    {
+        <MudText>Выберите ячейку для изменения. Правки сохраняются в заявке, а не в рабочей ИТ-системе.</MudText>
+        <MudTabs @key="session" KeepPanelsAlive="true">
+            @foreach (var type in TableTypes)
+            {
+                <MudTabPanel @key="type" Text="@Registry.Get(type).Title">
+                    <UniversalTable ModelType="type" Data="session.Data" LayoutStore="LayoutStore"
+                                    AddRequested="() => workspace.OpenForm(type, ChangeKind.Add)"
+                                    RowOperationRequested="request => OperateAsync(workspace, request)"
+                                    RestoreRequested="key => ConfirmAsync(workspace, key, true)">
+                        <Toolbar><button type="button" @onclick="() => workspace.OpenForm(type, ChangeKind.Add)">Добавить</button></Toolbar>
+                    </UniversalTable>
+                </MudTabPanel>
+            }
+        </MudTabs>
+        <TableWorkspace @key="workspace" Controller="workspace" />
+        <details><summary>Сверка неподтверждённых операций</summary><OperationRecovery /></details>
+    }
+    else if (_error is null)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else
+    {
+        <MudButton OnClick="LoadAsync">Повторить загрузку</MudButton>
+    }
+}
+
+@code {
+    [Parameter] public Guid? TicketId { get; set; }
+    private string? _systemId, _existingId, _error;
+    private TicketSession? _session;
+    private WorkspaceController? _workspace;
+    private static readonly Type[] TableTypes = [typeof(VmRow), typeof(ClusterRow), typeof(RuleRow)];
+    private CancellationTokenSource _request = new();
+    private bool _busy;
+
+    private static bool Valid(string? text) => Guid.TryParse(text, out var id) && id != Guid.Empty;
+    private void OpenExisting() => Navigation.NavigateTo($"Ticket/{Guid.Parse(_existingId!):D}");
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private Task OperateAsync(WorkspaceController workspace, RowOperationRequest request)
+    {
+        if (request.Operation == RowOperation.Delete) return ConfirmAsync(workspace, request.Entity, false);
+        workspace.OpenForm(request.Row.GetType(), request.Operation == RowOperation.Copy ? ChangeKind.Copy : ChangeKind.Edit, request.Row);
+        return Task.CompletedTask;
+    }
+
+    private async Task ConfirmAsync(WorkspaceController workspace, EntityKey key, bool restore)
+    {
+        var data = workspace.Data;
+        var ct = _request.Token;
+        var label = data.Rows(Registry.Get(key.ObjectType).Type).OfType<TicketRow>().Single(row => row.Id == key.Id);
+        var question = restore ? $"Восстановить «{label}» и объекты его группы удаления?" : $"Удалить «{label}» из заявки? Это может затронуть связанные объекты.";
+        try
+        {
+            if (!await JS.InvokeAsync<bool>("confirm", ct, question) || ct.IsCancellationRequested) return;
+            var request = new EditRequest(restore ? ChangeKind.Restore : ChangeKind.Delete, key, null, [], [], new Dictionary<string, System.Text.Json.JsonElement>());
+            var result = await Dispatcher.SendAsync(CommandEnvelope.Create(data.Context, request), TimeSpan.FromSeconds(30), ct);
+            if (!ct.IsCancellationRequested) _error = result.Status switch
+            {
+                DispatchStatus.Unknown => $"{result.Message} Выполните сверку неподтверждённых операций.",
+                DispatchStatus.Rejected => result.Message ?? "Сервер отклонил операцию.",
+                _ => null
+            };
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception e) { if (!ct.IsCancellationRequested) _error = e.Message; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _request.Cancel();
+        _request.Dispose();
+        _request = new();
+        var ct = _request.Token;
+        _session = null;
+        _workspace = null;
+        _error = null;
+        _busy = false;
+        if (!RendererInfo.IsInteractive || TicketId is not Guid id) return;
+        try
+        {
+            _session = await Editor.OpenAsync(id, ct);
+            _workspace = new(Registry, Drafts, _session.Data);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception e) { if (!ct.IsCancellationRequested) _error = e.Message; }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_busy || !Valid(_systemId)) return;
+        _busy = true;
+        _error = null;
+        var ct = _request.Token;
+        try
+        {
+            var id = await Editor.CreateAsync(Guid.Parse(_systemId!), ct);
+            if (!ct.IsCancellationRequested) Navigation.NavigateTo($"Ticket/{id:D}");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (Exception e) { if (!ct.IsCancellationRequested) _error = e.Message; }
+        finally { if (!ct.IsCancellationRequested) _busy = false; }
+    }
+
+    public void Dispose()
+    {
+        _request.Cancel();
+        _request.Dispose();
+    }
+}
