@@ -21,6 +21,8 @@
 .ut-cell{display:flex;align-items:center;flex-shrink:0;box-sizing:border-box;height:30px;overflow:hidden;padding:0 7px;border-right:1px solid #80808040;border-bottom:1px solid #80808030;white-space:nowrap}
 .ut-ellipsis{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ut-tooltip .ut-tooltip-description{white-space:pre-wrap;overflow-wrap:anywhere}
+.ut-input.ut-reference-clearable{display:block;padding-right:32px}
+.ut-reference-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:24px;height:24px;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
 .ut-reference-option{padding:6px;cursor:pointer}
 .ut-reference-option:hover,.ut-reference-option[aria-selected="true"]{background:#80808040}
 .ut-cell.ut-collection-link{cursor:pointer;text-decoration:underline;text-underline-offset:2px}

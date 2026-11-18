@@ -3,9 +3,9 @@
 @inject TableOptions Options
 @inject IJSRuntime JS
 <div @ref="_root" style="position:relative" @onkeydown="KeyDown" @onkeydown:stopPropagation="true">
-    <input class="ut-input" role="combobox" aria-label="@Title" aria-autocomplete="list" aria-expanded="@_open" aria-controls="@_id" aria-activedescendant="@(_active>=0 ? _id+"-"+_active : null)"
+    <input class="ut-input @(ShowClearButton ? "ut-reference-clearable" : null)" role="combobox" aria-label="@Title" aria-autocomplete="list" aria-expanded="@_open" aria-controls="@_id" aria-activedescendant="@(_active>=0 ? _id+"-"+_active : null)"
         autocomplete="off" disabled="@Disabled" value="@_text" @oninput="InputAsync" @onfocus="Open" @onblur="Close" />
-    @if(Clearable && !Disabled) { <button type="button" aria-label="Очистить" @onmousedown:preventDefault="true" @onclick="ClearAsync">×</button> }
+    @if(ShowClearButton) { <button type="button" class="ut-reference-clear" aria-label="Очистить" @onmousedown:preventDefault="true" @onclick="ClearAsync">×</button> }
     @if(_open && !Disabled)
     {
         <div id="@_id" role="listbox" class="ut-reference-options" style="position:absolute;top:100%;left:0;min-width:100%;max-height:240px;overflow:auto;background:var(--mud-palette-surface,#fff);border:1px solid #888">
@@ -24,6 +24,7 @@
     [Parameter,EditorRequired] public Func<IEnumerable<ReferenceOption>> Items {get;set;}=default!;
     [Parameter] public bool Disabled {get;set;}
     [Parameter] public bool Clearable {get;set;}
+    private bool ShowClearButton => Clearable && !Disabled;
     [Parameter] public string Title {get;set;}="";
     [Parameter] public Func<ReferenceOption,string?>? Tooltip {get;set;}
     private readonly string _id="ut-reference-"+Guid.NewGuid().ToString("N");
