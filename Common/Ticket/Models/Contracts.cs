@@ -11,7 +11,11 @@ public sealed class HistoryTypeAttribute(string name) : Attribute { public strin
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class HistoryIgnoreAttribute : Attribute { }
 [AttributeUsage(AttributeTargets.Property)]
-public sealed class MainObjectAttribute(string navigationProperty) : Attribute { public string NavigationProperty { get; } = navigationProperty; }
+public sealed class MainObjectAttribute(string navigationProperty) : Attribute
+{
+    public string NavigationProperty { get; } = navigationProperty;
+    public bool AllowOutsideSnapshot { get; set; }
+}
 [AttributeUsage(AttributeTargets.Property)]
 public sealed class ExternalReferenceAttribute : Attribute { }
 [AttributeUsage(AttributeTargets.Property)]

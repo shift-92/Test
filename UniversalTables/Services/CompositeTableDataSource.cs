@@ -12,15 +12,18 @@ public sealed class CompositeTableDataSource : ITableDataSource
     private readonly Func<EntityKey,RowState> _state;
     private readonly Func<CellKey,CellDifference> _difference;
     private readonly Func<EntityKey,bool> _canEdit;
+    private readonly Func<EntityKey,object?>? _originalRow;
     public TableContext Context {get;}
     public event Action<DataInvalidation>? Invalidated;
     public CompositeTableDataSource(TableContext context,ModelRegistry registry,
         Func<Type,IReadOnlyList<object>> cache,Func<Type,IReadOnlyList<object>> session,
         Func<Type,bool> tracked,Func<Type,IReadOnlySet<Guid>> deleted,
-        Func<EntityKey,RowState> state,Func<CellKey,CellDifference> difference,Func<EntityKey,bool> canEdit)
+        Func<EntityKey,RowState> state,Func<CellKey,CellDifference> difference,Func<EntityKey,bool> canEdit,
+        Func<EntityKey,object?>? originalRow=null)
     {
         Context=context; _registry=registry; _cache=cache; _session=session; _tracked=tracked;
         _deleted=deleted; _state=state; _difference=difference; _canEdit=canEdit;
+        _originalRow=originalRow;
     }
     public IReadOnlyList<object> Rows(Type registeredType)
     {
@@ -58,6 +61,7 @@ public sealed class CompositeTableDataSource : ITableDataSource
     }
     public RowState GetRowState(EntityKey key)=>Context.Mode==TableMode.Ticket ? _state(key) : new(false,false);
     public CellDifference GetDifference(CellKey key)=>Context.Mode==TableMode.Ticket ? _difference(key) : CellDifference.None;
+    public object? GetOriginalRow(EntityKey key)=>Context.Mode==TableMode.Ticket ? _originalRow?.Invoke(key) : null;
     public bool CanEdit(EntityKey key)
     {
         if(Context.Mode==TableMode.Ticket)

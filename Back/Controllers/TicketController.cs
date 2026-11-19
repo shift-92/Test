@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Common.Ticket.Engine;
 using Common.Ticket.Metadata;
@@ -13,7 +14,7 @@ namespace Back.Controllers;
 [Route("api/[controller]")]
 [AllowAnonymous]
 [ApiController]
-public class TicketController(DataContext db) : ControllerBase
+public class TicketController(DataContext db, IHubContext<TicketHub> hub, ILogger<TicketController> logger) : ControllerBase
 {
     private static readonly ModelRegistry Registry = ModelRegistry.Scan(typeof(DbItSystem).Assembly);
     private static readonly HistoryEngine Engine = new(Registry);
@@ -41,10 +42,10 @@ public class TicketController(DataContext db) : ControllerBase
         rows.AddRange(await vms.ToListAsync(ct));
         rows.AddRange(await db.VmDisks.AsNoTracking().Where(x => vmIds.Contains(x.VmId)).ToListAsync(ct));
         rows.AddRange(await addresses.ToListAsync(ct));
-        rows.AddRange(await db.NetworkRules.AsNoTracking().Where(x => addressIds.Contains(x.IpAddressId)).ToListAsync(ct));
+        rows.AddRange(await db.NetworkRules.AsNoTracking().Where(x => addressIds.Contains(x.IpAddressId) || addressIds.Contains(x.TargetAddressId)).ToListAsync(ct));
 
         var state = FlatMapper.Capture(Registry, rows);
-        try { Engine.Validate(state); }
+        try { Engine.Validate(state); await ValidateExternalAddresses(state, ct); }
         catch (ChangeValidationException e) { return Conflict(new ChangeErrorDto("invalid_snapshot", e.Message)); }
 
         var snapshot = StateJson.Serialize(state);
@@ -67,7 +68,7 @@ public class TicketController(DataContext db) : ControllerBase
             .OrderBy(x => x.DateTimeUtc).ThenBy(x => x.Id)
             .Select(x => new { x.Id, x.Status, x.DateTimeUtc, x.UserId }).ToListAsync(ct);
         await tx.CommitAsync(ct);
-        return Ok(new { ticket.Id, ticket.CurrentStatus, ticket.LastSequence,
+        return Ok(new { ticket.Id, ticket.CurrentStatus, ticket.LastSequence, StatusRevision = statuses.Count,
             OriginalRows = StateJson.Deserialize(ticket.OriginalJson).Entities.Values,
             CurrentRows = StateJson.Deserialize(ticket.CurrentJson).Entities.Values, Actions = actions, Statuses = statuses });
     }
@@ -90,6 +91,7 @@ public class TicketController(DataContext db) : ControllerBase
             List<StoredAction> history = command.Kind is "restore" or "restoreMany" or "rollback" ? await LoadHistory(id, ct) : [];
             var plan = Planner.Plan(command, StateJson.Deserialize(ticket.OriginalJson), current, history, ticket.LastSequence);
             var applied = Engine.Apply(current, plan.Operations);
+            await ValidateExternalAddresses(applied.State, ct);
             var action = new StoredAction(command.SchemaVersion, command.ActionId, id, ticket.LastSequence + 1,
                 DateTimeOffset.UtcNow, command.Title, plan.Operations, applied.InverseOperations,
                 UserId == Guid.Empty ? null : UserId.ToString(), User.Identity?.Name, plan.DeletionGroups);
@@ -100,6 +102,7 @@ public class TicketController(DataContext db) : ControllerBase
                 RequestJson = JsonSerializer.Serialize(command, ChangeJson.Options), ActionJson = JsonSerializer.Serialize(action, ChangeJson.Options) });
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
+            await NotifyChangedAsync(id);
             return Ok(action);
         }
         catch (SequenceConflictException e) { return Conflict(new ChangeErrorDto("sequence_conflict", e.Message, e.ActualSequence)); }
@@ -117,7 +120,28 @@ public class TicketController(DataContext db) : ControllerBase
         RecordStatus(ticket, status, request);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        await NotifyChangedAsync(id);
         return NoContent();
+    }
+
+    private async Task ValidateExternalAddresses(EditorState state, CancellationToken ct)
+    {
+        var ids = state.Entities.Values.Where(r => !r.IsDeleted && r.Key.Type == "networkRule")
+            .SelectMany(r => new[] { r.Properties[nameof(DbNetworkRule.IpAddressId)].GetGuid(), r.Properties[nameof(DbNetworkRule.TargetAddressId)].GetGuid() })
+            .Where(id => !state.Entities.ContainsKey(new("ipAddress", id))).Distinct().ToArray();
+        foreach (var batch in ids.Chunk(500))
+        {
+            var found = await db.IpAddresses.Where(a => batch.Contains(a.Id)).Select(a => a.Id).ToListAsync(ct);
+            if (found.Count != batch.Length)
+                throw new ChangeValidationException($"Внешний IP-адрес {batch.Except(found).First()} не найден в БД.");
+        }
+    }
+
+    private async Task NotifyChangedAsync(Guid id)
+    {
+        // Транзакция уже завершена: сбой доставки не должен выглядеть как отказ сохранения.
+        try { await hub.Clients.Group(id.ToString("D")).SendAsync(TicketNotifications.Changed); }
+        catch (Exception e) { logger.LogWarning(e, "Не удалось уведомить об изменении заявки {TicketId}", id); }
     }
 
     // Один писатель на заявку: проверка sequence и запись истории выполняются под одной блокировкой SQL Server.

@@ -76,8 +76,7 @@
                                     var context=new CellContext(row,key,column,column.Read(row),diff);
                                     <div @key="column.Id" class="@($"ut-cell {(diff.Changed ? "changed" : "")} {(column.Collection is not null && CollectionRequested.HasDelegate && _field is null && !_bulkBusy ? "ut-collection-link" : "")}")" data-width="@column.Id" data-cell="@column.Id" style="@Width(column)"
                                         @onclick="()=>ActivateAsync(context)" @onmouseenter="()=>{_hoverHeading=null;_hover=context;}" @onmouseleave="()=>_hover=null">
-                                        @if(column.CellTemplate is not null) { @column.CellTemplate(context) }
-                                        else { <span class="ut-ellipsis">@Display(row,column)</span> }
+                                        @CellContent(context)
                                     </div>
                                 }
                             </div>
@@ -102,7 +101,8 @@
         else if(_hover is not null && _field is null)
         {
             <div class="ut-tooltip" role="tooltip" popover="manual"><div class="ut-tooltip-text">@Tooltip(_hover)</div>
-                @if(_hover.Column.Collection is null && _hover.Difference.Changed) { <hr /><div class="ut-tooltip-text">Было: @_hover.Difference.Before</div> }
+                @if(_hover.Column.Collection is null && _hover.Difference.Changed) { <hr /><div class="ut-tooltip-text">Было: @BeforeContent(_hover)</div> }
+                else if(_hover.Column.Collection is not null && _hover.Difference.Changed) { <hr /><div class="ut-tooltip-text">@_hover.Difference.After</div> }
             </div>
         }
         <TableFilter @ref="_filter" Query="@_query" Engine="@_engine" Rows="ReadRows" Data="@Data" FixedFilter="@FixedFilter" Changed="QueryChangedAsync" ChoiceContent="FilterContent" />
@@ -302,6 +302,17 @@
         catch(Exception ex) { if(!_disposed) await DispatchExceptionAsync(ex); }
     }
     public Task RefreshAsync()=>InvokeAsync(()=>{Rebuild();StateHasChanged();});
+    private RenderFragment CellContent(CellContext cell)
+    {
+        if(cell.Column.CellTemplate is { } template) return template(cell);
+        return @<span class="ut-ellipsis">@Display(cell.Row,cell.Column)</span>;
+    }
+    private RenderFragment BeforeContent(CellContext cell)
+    {
+        if(Data.GetOriginalRow(cell.Entity) is { } row)
+            return CellContent(cell with { Row=row, Value=cell.Column.Read(row), Difference=CellDifference.None });
+        return builder=>builder.AddContent(0,cell.Difference.Before);
+    }
     private RenderFragment Display(object row,TableColumn column)
     {
         if(column.Display is not null) return column.Display(row);

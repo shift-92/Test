@@ -17,8 +17,16 @@ builder.Services.AddUniversalTables(TicketTables.Register);
 builder.Services.AddUniversalTableForms();
 builder.Services.AddHttpClient("TicketApi", http => http.BaseAddress = new Uri(builder.Configuration["TicketApi:BaseUrl"] ?? throw new InvalidOperationException("Не задан TicketApi:BaseUrl.")));
 builder.Services.AddScoped<TicketEditor>();
+builder.Services.AddSingleton<Front.WebDataService>();
+builder.Services.AddSingleton(Common.Ticket.Metadata.ModelRegistry.Scan(typeof(Common.Ticket.Domain.DbItSystem).Assembly));
+builder.Services.AddSingleton<Common.Ticket.Engine.HistoryEngine>();
+builder.Services.AddSingleton<Common.Ticket.Engine.BulkDeletePlanner>();
+builder.Services.AddSingleton<Common.Ticket.Engine.RestorePlanner>();
+builder.Services.AddSingleton<Common.Ticket.Engine.CommandPlanner>();
+builder.Services.AddSingleton<Front.Components.Shared.ChangesViewService>();
 builder.Services.AddScoped<ICommandTransport>(sp => sp.GetRequiredService<TicketEditor>());
 builder.Services.AddScoped<ITableLayoutStore, TicketLayoutStore>();
+builder.Services.AddScoped<IDeletionService, TicketDeletionService>();
 
 
 

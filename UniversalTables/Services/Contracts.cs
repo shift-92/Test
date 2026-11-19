@@ -12,6 +12,8 @@ public interface ITableDataSource
     ReferenceOption? ResolveReference(Type registeredType, Guid id);
     RowState GetRowState(EntityKey key);
     CellDifference GetDifference(CellKey key);
+    // A typed snapshot lets column templates render the previous value just like a table cell.
+    object? GetOriginalRow(EntityKey key) => null;
     bool CanEdit(EntityKey key);
     bool CanRestore(EntityKey key) => Context.Mode == TableMode.Ticket && GetRowState(key).IsDeleted && CanEdit(key);
     event Action<DataInvalidation>? Invalidated;

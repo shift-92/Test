@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
 
 var connectionString = builder.Configuration.GetConnectionString("ConnectionString") ?? throw new InvalidOperationException("Connection string 'ConnectionString' is not configured.");
 
@@ -17,5 +18,6 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<TicketHub>("/" + Common.Ticket.Models.TicketNotifications.Path);
 
 app.Run();

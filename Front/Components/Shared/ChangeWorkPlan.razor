@@ -1,0 +1,44 @@
+﻿@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+
+<MudPaper Class="pa-4" Outlined="true">
+    <MudText Typo="Typo.h6">План работ</MudText>
+    <MudAlert Severity="Severity.Info" Class="my-3">Итоговое отличие от оригинала. Промежуточные и отменённые изменения не показаны. Это не журнал фактического исполнения.</MudAlert>
+    <MudText Typo="Typo.body2">Создать: @Items.Count(x => x.Kind == "create") · Изменить: @Items.Count(x => x.Kind == "modify") · Удалить: @Items.Count(x => x.Kind == "remove")</MudText>
+    <MudTextField T="string" @bind-Value="_search" Label="Поиск" Immediate="true" Clearable="true" Class="my-3" />
+    @if (Items.Count == 0)
+    {
+        <MudAlert Severity="Severity.Success">Работ нет: активные данные совпадают с оригиналом.</MudAlert>
+    }
+    @foreach (var item in Filtered)
+    {
+        <MudPaper @key="item.Entity" Outlined="true" Class="pa-3 mb-3">
+            <MudChip T="string" Color="@ColorFor(item.Kind)">@Title(item.Kind)</MudChip>
+            <MudText Typo="Typo.subtitle1">@item.TypeName: @item.Name</MudText>
+            <MudText Typo="Typo.caption">Id: @item.Entity.Id</MudText>
+            @if (item.Kind != "remove")
+            {
+                <MudSimpleTable Dense="true" Bordered="true" Style="overflow-x:auto">
+                    <thead><tr><th>Поле</th><th>Исходное значение</th><th>Требуемое значение</th></tr></thead>
+                    <tbody>
+                        @foreach (var field in item.Fields)
+                        {
+                            <tr><td>@field.Name</td><td style="white-space:pre-wrap">@field.Before</td><td style="white-space:pre-wrap"><strong>@field.After</strong></td></tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudPaper>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public IReadOnlyList<UiWork> Items { get; set; } = Array.Empty<UiWork>();
+    private string? _search;
+    private IEnumerable<UiWork> Filtered => Items.Where(x => string.IsNullOrWhiteSpace(_search) || (x.TypeName + " " + x.Name + " " + x.Entity.Id + " " + string.Join(" ", x.Fields.Select(f => f.Name + " " + f.After))).Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private static string Title(string kind) => kind switch { "create" => "Создать / ввести в эксплуатацию", "remove" => "Удалить / вывести из эксплуатации", _ => "Изменить параметры" };
+    private static Color ColorFor(string kind) => kind switch { "create" => Color.Success, "remove" => Color.Error, _ => Color.Warning };
+}

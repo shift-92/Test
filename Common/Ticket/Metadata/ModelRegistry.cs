@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Common.Ticket.Metadata;
 
-public sealed record ReferenceMetadata(string Property, string TargetType, ReferenceDeleteBehavior DeleteBehavior);
+public sealed record ReferenceMetadata(string Property, string TargetType, ReferenceDeleteBehavior DeleteBehavior, bool AllowOutsideSnapshot = false);
 public sealed class ModelMetadata
 {
     public required Type ClrType { get; init; }
@@ -61,7 +61,7 @@ public sealed class ModelRegistry
             }
             var behavior = deletion?.Behavior ?? ReferenceDeleteBehavior.Restrict;
             if (behavior == ReferenceDeleteBehavior.SetNull && p.PropertyType != typeof(Guid?)) throw new InvalidOperationException("Для SetNull требуется Guid?.");
-            m.References.Add(new ReferenceMetadata(p.Name, r.Get(navigation.PropertyType).Name, behavior));
+            m.References.Add(new ReferenceMetadata(p.Name, r.Get(navigation.PropertyType).Name, behavior, main.AllowOutsideSnapshot));
         }
         return r;
     }

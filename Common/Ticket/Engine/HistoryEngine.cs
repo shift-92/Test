@@ -79,7 +79,8 @@ public sealed class HistoryEngine(ModelRegistry registry)
                 var value = row.Properties[reference.Property];
                 if (value.ValueKind == JsonValueKind.Null) continue;
                 var target = new EntityKey(reference.TargetType, value.GetGuid());
-                if (!state.Entities.TryGetValue(target, out var entity) || entity.IsDeleted) throw new ChangeValidationException($"{row.Key}.{reference.Property} ссылается на отсутствующий/удаленный объект {target}.");
+                if (state.Entities.TryGetValue(target, out var entity) ? entity.IsDeleted : !reference.AllowOutsideSnapshot || target.Id == Guid.Empty)
+                    throw new ChangeValidationException($"{row.Key}.{reference.Property} ссылается на отсутствующий/удаленный объект {target}.");
             }
         }
     }

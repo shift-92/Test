@@ -24,7 +24,7 @@ public static class ColumnMetadata
         foreach (var property in properties) { if (value is null) return null; value = property.GetValue(value); }
         return value;
     }
-    private static string? StringArgument(PropertyInfo property, string attributeName) => property.CustomAttributes
+    internal static string? StringArgument(PropertyInfo property, string attributeName) => property.CustomAttributes
         .FirstOrDefault(a => a.AttributeType.Name == attributeName)?.ConstructorArguments
         .LastOrDefault(a => a.ArgumentType == typeof(string)).Value as string;
 

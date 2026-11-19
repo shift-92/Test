@@ -1,0 +1,45 @@
+﻿@using System
+@using System.Collections.Generic
+@using System.Linq
+@using Microsoft.AspNetCore.Components
+@using MudBlazor
+
+<MudPaper Class="pa-4" Outlined="true">
+    <MudText Typo="Typo.h6">Подробный журнал: @Entries.Count</MudText>
+    <MudTextField T="string" @bind-Value="_search" Label="Поиск по автору, объекту или значению" Immediate="true" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="my-3" />
+    @if (Entries.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">Изменений нет.</MudAlert>
+    }
+    <MudExpansionPanels MultiExpansion="true">
+        @foreach (var entry in Filtered)
+        {
+            <MudExpansionPanel @key="entry.ActionId" Text="@Header(entry)">
+                <MudText Typo="Typo.caption">ActionId: @entry.ActionId</MudText>
+                <MudSimpleTable Dense="true" Bordered="true" Striped="true" Style="overflow-x:auto">
+                    <thead><tr><th>Операция</th><th>Объект</th><th>Поле</th><th>Было</th><th>Стало</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in entry.Details)
+                        {
+                            <tr><td>@d.Operation</td><td><strong>@d.EntityName</strong><div>@d.Entity.Type</div><small>@d.Entity.Id</small></td><td>@d.Field</td><td style="white-space:pre-wrap;overflow-wrap:anywhere">@d.Before</td><td style="white-space:pre-wrap;overflow-wrap:anywhere">@d.After</td></tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            </MudExpansionPanel>
+        }
+    </MudExpansionPanels>
+</MudPaper>
+
+@code {
+    [Parameter] public IReadOnlyList<UiLog> Entries { get; set; } = Array.Empty<UiLog>();
+    [Parameter] public TimeZoneInfo DisplayTimeZone { get; set; } = TimeZoneInfo.Utc;
+    private string? _search;
+    private IEnumerable<UiLog> Filtered => Entries.Where(Matches).OrderByDescending(x => x.Sequence);
+    private bool Matches(UiLog item)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        bool Has(string text) => text.Contains(_search, StringComparison.OrdinalIgnoreCase);
+        return Has(item.Author) || Has(item.Title) || item.Details.Any(x => Has(x.EntityName) || Has(x.Entity.Id.ToString()) || Has(x.Field) || Has(x.Before) || Has(x.After));
+    }
+    private string Header(UiLog item) => $"#{item.Sequence} · {TimeZoneInfo.ConvertTime(item.Date, DisplayTimeZone):dd.MM.yyyy HH:mm:ss zzz} · {item.Author} · {item.Title}";
+}

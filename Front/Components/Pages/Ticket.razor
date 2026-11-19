@@ -2,6 +2,11 @@
 
 @page "/Ticket/{TicketId:guid}"
 @using Front.Tickets
+@using Common.Ticket.Models
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Threading.Channels
+@using Front.Components.Shared
+@using UniversalTables.Configuration
 @using UniversalTables.Components
 @using UniversalTables.Models
 @using UniversalTables.Services
@@ -9,16 +14,19 @@
 @inject TicketEditor Editor
 @inject ModelRegistry Registry
 @inject DraftFactory Drafts
-@inject CommandDispatcher Dispatcher
-@inject IJSRuntime JS
 @inject ITableLayoutStore LayoutStore
 @inject NavigationManager Navigation
+@inject IHttpClientFactory Clients
 
 <PageTitle>Редактор заявки</PageTitle>
 <MudText Typo="Typo.h4">Редактор изменений ИТ-системы</MudText>
 @if (_error is not null)
 {
     <MudAlert Severity="Severity.Error">@_error</MudAlert>
+}
+@if (_syncWarning is not null)
+{
+    <MudAlert Severity="Severity.Warning">@_syncWarning</MudAlert>
 }
 @if (TicketId is null)
 {
@@ -33,21 +41,37 @@ else
     <MudLink Href="Ticket">К выбору заявки</MudLink>
     @if (_session is { } session && _workspace is { } workspace)
     {
+        <MudText>Статус: @StatusText(session.Status)</MudText>
         <MudText>Выберите ячейку для изменения. Правки сохраняются в заявке, а не в рабочей ИТ-системе.</MudText>
         <MudTabs @key="session" KeepPanelsAlive="true">
             @foreach (var type in TableTypes)
             {
                 <MudTabPanel @key="type" Text="@Registry.Get(type).Title">
                     <UniversalTable ModelType="type" Data="session.Data" LayoutStore="LayoutStore"
+                                    CollectionRequested="cell => OpenCollection(workspace, cell)"
                                     AddRequested="() => workspace.OpenForm(type, ChangeKind.Add)"
-                                    RowOperationRequested="request => OperateAsync(workspace, request)"
-                                    RestoreRequested="key => ConfirmAsync(workspace, key, true)">
+                                    RowOperationRequested="request => Operate(workspace, request)"
+                                    RestoreRequested="key => workspace.OpenDeletion(key, restore: true)">
                         <Toolbar><button type="button" @onclick="() => workspace.OpenForm(type, ChangeKind.Add)">Добавить</button></Toolbar>
                     </UniversalTable>
                 </MudTabPanel>
             }
+            <MudTabPanel Text="Журнал изменений"><ChangeLog Entries="session.Log" /></MudTabPanel>
+            <MudTabPanel Text="План работ"><ChangeWorkPlan Items="session.Work" /></MudTabPanel>
         </MudTabs>
-        <TableWorkspace @key="workspace" Controller="workspace" />
+        <TableWorkspace @key="workspace" Controller="workspace">
+            <TableTemplate Context="table">
+                @{ void AddChild() => workspace.OpenForm(table.ModelType, ChangeKind.Add, fixedValues: table.FixedValues); }
+                <UniversalTable @key="table.WindowId" ModelType="table.ModelType" Data="session.Data" LayoutStore="LayoutStore"
+                                FixedFilter="@(CollectionRelations.FixedFilter(table.ModelType, table.ForeignKey!, table.ParentId!.Value))"
+                                CollectionRequested="cell => OpenCollection(workspace, cell)"
+                                AddRequested="AddChild"
+                                RowOperationRequested="request => Operate(workspace, request, table.FixedValues)"
+                                RestoreRequested="key => workspace.OpenDeletion(key, restore: true)">
+                    <Toolbar><button type="button" @onclick="AddChild">Добавить</button></Toolbar>
+                </UniversalTable>
+            </TableTemplate>
+        </TableWorkspace>
         <details><summary>Сверка неподтверждённых операций</summary><OperationRecovery /></details>
     }
     else if (_error is null)
@@ -63,6 +87,7 @@ else
 @code {
     [Parameter] public Guid? TicketId { get; set; }
     private string? _systemId, _existingId, _error;
+    private string? _syncWarning;
     private TicketSession? _session;
     private WorkspaceController? _workspace;
     private static readonly Type[] TableTypes = [typeof(VmRow), typeof(ClusterRow), typeof(RuleRow)];
@@ -70,37 +95,31 @@ else
     private bool _busy;
 
     private static bool Valid(string? text) => Guid.TryParse(text, out var id) && id != Guid.Empty;
+    private static string StatusText(EnumTicketStatus status) => status switch
+    {
+        EnumTicketStatus.Create => "Создана",
+        EnumTicketStatus.Project => "Проект",
+        EnumTicketStatus.Open => "Открыта",
+        EnumTicketStatus.InWork => "В работе",
+        EnumTicketStatus.Complited => "Выполнена",
+        EnumTicketStatus.NotComplited => "Не выполнена",
+        _ => status.ToString()
+    };
     private void OpenExisting() => Navigation.NavigateTo($"Ticket/{Guid.Parse(_existingId!):D}");
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
-    private Task OperateAsync(WorkspaceController workspace, RowOperationRequest request)
+    private static void OpenCollection(WorkspaceController workspace, CellContext cell)
     {
-        if (request.Operation == RowOperation.Delete) return ConfirmAsync(workspace, request.Entity, false);
-        workspace.OpenForm(request.Row.GetType(), request.Operation == RowOperation.Copy ? ChangeKind.Copy : ChangeKind.Edit, request.Row);
-        return Task.CompletedTask;
+        if (cell.Column.Collection is { } relation)
+            workspace.OpenTable(relation.ElementType, relation.ForeignKey, cell.Entity.Id, $"{cell.Column.Title}: {cell.Row}");
     }
 
-    private async Task ConfirmAsync(WorkspaceController workspace, EntityKey key, bool restore)
+    private static void Operate(WorkspaceController workspace, RowOperationRequest request, IReadOnlyDictionary<string, object?>? fixedValues = null)
     {
-        var data = workspace.Data;
-        var ct = _request.Token;
-        var label = data.Rows(Registry.Get(key.ObjectType).Type).OfType<TicketRow>().Single(row => row.Id == key.Id);
-        var question = restore ? $"Восстановить «{label}» и объекты его группы удаления?" : $"Удалить «{label}» из заявки? Это может затронуть связанные объекты.";
-        try
-        {
-            if (!await JS.InvokeAsync<bool>("confirm", ct, question) || ct.IsCancellationRequested) return;
-            var request = new EditRequest(restore ? ChangeKind.Restore : ChangeKind.Delete, key, null, [], [], new Dictionary<string, System.Text.Json.JsonElement>());
-            var result = await Dispatcher.SendAsync(CommandEnvelope.Create(data.Context, request), TimeSpan.FromSeconds(30), ct);
-            if (!ct.IsCancellationRequested) _error = result.Status switch
-            {
-                DispatchStatus.Unknown => $"{result.Message} Выполните сверку неподтверждённых операций.",
-                DispatchStatus.Rejected => result.Message ?? "Сервер отклонил операцию.",
-                _ => null
-            };
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
-        catch (Exception e) { if (!ct.IsCancellationRequested) _error = e.Message; }
+        if (request.Operation == RowOperation.Delete) workspace.OpenDeletion(request.Entity);
+        else if (request.Operation == RowOperation.Copy) workspace.OpenForm(request.Row.GetType(), ChangeKind.Copy, request.Row, fixedValues);
+        else workspace.OpenForm(request.Row.GetType(), ChangeKind.Edit, request.Row);
     }
 
     private async Task LoadAsync()
@@ -109,18 +128,69 @@ else
         _request.Dispose();
         _request = new();
         var ct = _request.Token;
+        if (_session is not null) _session.Data.Invalidated -= SessionUpdated;
         _session = null;
         _workspace = null;
         _error = null;
+        _syncWarning = null;
         _busy = false;
         if (!RendererInfo.IsInteractive || TicketId is not Guid id) return;
         try
         {
-            _session = await Editor.OpenAsync(id, ct);
+            var opened = await Editor.OpenAsync(id, ct);
+            ct.ThrowIfCancellationRequested();
+            _session = opened;
+            _session.Data.Invalidated += SessionUpdated;
             _workspace = new(Registry, Drafts, _session.Data);
+            _ = WatchAsync(opened, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         catch (Exception e) { if (!ct.IsCancellationRequested) _error = e.Message; }
+    }
+
+    private async Task WatchAsync(TicketSession session, CancellationToken ct)
+    {
+        // Один читатель на страницу; при серии уведомлений достаточно одного свежего снимка.
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                using var api = Clients.CreateClient("TicketApi");
+                await using var hub = new HubConnectionBuilder()
+                    .WithUrl(new Uri(api.BaseAddress!, TicketNotifications.Path)).Build();
+                var changes = Channel.CreateBounded<bool>(1);
+                using var subscription = hub.On(TicketNotifications.Changed, () => { changes.Writer.TryWrite(true); });
+                hub.Closed += error =>
+                {
+                    changes.Writer.TryComplete(error);
+                    return Task.CompletedTask;
+                };
+
+                await hub.StartAsync(ct);
+                await hub.InvokeAsync(TicketNotifications.Subscribe, session.Id, ct);
+                // Перечитываем после подписки, включая изменения, пропущенные при разрыве связи.
+                changes.Writer.TryWrite(true);
+                await foreach (var _ in changes.Reader.ReadAllAsync(ct))
+                {
+                    await Editor.RefreshAsync(session, ct);
+                    if (_syncWarning is not null && !ct.IsCancellationRequested)
+                    {
+                        _syncWarning = null;
+                        StateHasChanged();
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (Exception e) when (!ct.IsCancellationRequested)
+            {
+                _syncWarning = $"Автообновление недоступно. Повторяем подключение: {e.Message}";
+                StateHasChanged();
+            }
+            catch (Exception) when (ct.IsCancellationRequested) { return; }
+
+            try { await Task.Delay(TimeSpan.FromSeconds(3), ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        }
     }
 
     private async Task CreateAsync()
@@ -139,8 +209,11 @@ else
         finally { if (!ct.IsCancellationRequested) _busy = false; }
     }
 
+    private void SessionUpdated(DataInvalidation change) => _ = InvokeAsync(StateHasChanged);
+
     public void Dispose()
     {
+        if (_session is not null) _session.Data.Invalidated -= SessionUpdated;
         _request.Cancel();
         _request.Dispose();
     }

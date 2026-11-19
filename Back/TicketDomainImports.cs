@@ -1,0 +1,1 @@
+global using Common.Ticket.Domain;
