@@ -3,12 +3,13 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Common.Ticket.Engine;
 using Common.Ticket.Models;
+using Common.Ticket.Services;
 using UniversalTables.Models;
 using UniversalTables.Services;
 
 namespace Front.Tickets;
 
-public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry registry, Front.Components.Shared.ChangesViewService views, WebDataService cache) : ICommandTransport
+public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry registry, Components.Shared.ChangesViewService views, WebDataService cache, EditorObjectFactory factory, IServiceProvider services) : ICommandTransport
 {
     public TicketSession? Session { get; private set; }
     public event Action<CommandCompletion>? Completed;
@@ -53,11 +54,19 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
         if (session is null || !ReferenceEquals(envelope.Context, session.Data.Context))
             return new(TransportStatus.Rejected, "Заявка уже закрыта.");
         var edit = envelope.Request.Deserialize<EditRequest>(TableJson.Options);
-        if (edit is null || edit.Root.ObjectType is not ("vm" or "cluster" or "networkRule" or "vmDisk" or "ipAddress") ||
-            edit.Collections.Count != 0 || edit.Fields.Any(f => f.Path.Count != 1) ||
+        if (edit is null || !TicketEditPolicy.ByType.TryGetValue(edit.Root.ObjectType, out var policy) ||
+            edit.Collections.Count != 0 || edit.Fields.Any(f => f.Path.Count != 1 || f.Path[0].ElementId is not null) ||
             (edit.FixedValues.Count != 0 && edit.Kind is not (ChangeKind.Add or ChangeKind.Copy)))
             return new(TransportStatus.Rejected, "Нельзя применить эту правку к заявке.");
         var key = new Common.Ticket.Models.EntityKey(edit.Root.ObjectType, edit.Root.Id);
+        var columns = registry.Get(key.Type).CreateColumns(services);
+        foreach (var field in edit.Fields)
+        {
+            if (!columns.Any(c => c.Id == field.ColumnId && c.Collection is null && !c.OneToOne &&
+                (c.Reference?.ForeignKeyPath ?? c.PropertyPath) == field.Path[0].Property && field.Path[0].Property != policy.SystemField &&
+                ((c.FormVisible && (c.FormEditable ?? c.CellEditable)) || (edit.Kind == ChangeKind.Edit && c.CellEditable))))
+                return new(TransportStatus.Rejected, $"Недоступное поле: {field.Path[0].Property}.");
+        }
         List<PatchOperation> operations = [];
         string kind = "patch", title;
         switch (edit.Kind)
@@ -73,46 +82,35 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
                 break;
             case ChangeKind.Add:
             case ChangeKind.Copy:
-                var row = new EntityState { Key = key };
-                var props = row.Properties;
-                var labelField = key.Type == "ipAddress" ? "Address" : "Name";
-                props[labelField] = ChangeJson.Value("");
-                if (key.Type == "vm")
+                try
                 {
-                    props["Date"] = ChangeJson.Value(default(DateTime));
-                    props["Description"] = ChangeJson.Value<string?>(null);
-                    props["ClusterId"] = ChangeJson.Value<Guid?>(null);
-                    props["UsageId"] = ChangeJson.Value<Guid?>(null);
+                    var values = new Dictionary<string, object?>(StringComparer.Ordinal);
+                    if (edit.Kind == ChangeKind.Copy)
+                    {
+                        EntityState? defaults = null;
+                        foreach (var column in columns.Where(c => !c.CopyValue && c.Collection is null && !c.OneToOne))
+                        {
+                            var property = column.Reference?.ForeignKeyPath ?? column.PropertyPath;
+                            defaults ??= factory.Create(key.Type).Rows.Single();
+                            if (defaults.Properties.TryGetValue(property, out var value)) values[property] = value;
+                        }
+                    }
+                    foreach (var field in edit.Fields) values[field.Path[0].Property] = field.Value;
+                    foreach (var (property, value) in edit.FixedValues)
+                    {
+                        if (property != policy.Parent || !TicketEditPolicy.IsLink(value))
+                            return new(TransportStatus.Rejected, "Недопустимая привязка к родителю.");
+                        values[property] = value;
+                    }
+                    if (policy.SystemField is not null) values[policy.SystemField] = session.ItSystemId;
+                    var addition = edit.Kind == ChangeKind.Add ? factory.Create(key.Type, values, key.Id)
+                        : factory.Copy(session.Current, new(key.Type, edit.SourceId ?? throw new ChangeValidationException("Не указан источник копии.")), rootValues: values, rootId: key.Id);
+                    policy.Validate(addition.Rows.Single(r => r.Key == addition.Root));
+                    key = addition.Root;
+                    operations = addition.ToOperations();
                 }
-                if (key.Type == "networkRule")
-                {
-                    props[nameof(RuleRow.IpAddressId)] = ChangeJson.Value(Guid.Empty);
-                    props[nameof(RuleRow.TargetAddressId)] = ChangeJson.Value(Guid.Empty);
-                }
-                if (key.Type == "vmDisk") props["SizeGb"] = ChangeJson.Value(0m);
-                foreach (var field in edit.Fields)
-                {
-                    var property = field.Path[0].Property;
-                    if (!props.ContainsKey(property)) return new(TransportStatus.Rejected, $"Недоступное поле: {property}.");
-                    props[property] = field.Value;
-                }
-                var parentField = key.Type switch { "vmDisk" or "ipAddress" => "VmId", "networkRule" => "IpAddressId", "vm" => "ClusterId", _ => null };
-                foreach (var (property, value) in edit.FixedValues)
-                {
-                    if (property != parentField || value.ValueKind != JsonValueKind.String || !value.TryGetGuid(out var parent) || parent == Guid.Empty)
-                        return new(TransportStatus.Rejected, "Недопустимая привязка к родителю.");
-                    props[property] = value;
-                }
-                if (props[labelField].ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(props[labelField].GetString()))
-                    return new(TransportStatus.Rejected, key.Type == "ipAddress" ? "Укажите IP-адрес." : "Укажите имя объекта.");
-                if (key.Type is "vm" or "cluster") props["ItSystemId"] = ChangeJson.Value(session.ItSystemId);
-                if (key.Type is ("vmDisk" or "ipAddress") && !props.ContainsKey("VmId"))
-                    return new(TransportStatus.Rejected, "Не указана родительская ВМ.");
-                if (key.Type == "networkRule" && new[] { nameof(RuleRow.IpAddressId), nameof(RuleRow.TargetAddressId) }
-                    .Any(field => props[field].ValueKind != JsonValueKind.String || !props[field].TryGetGuid(out var id) || id == Guid.Empty))
-                    return new(TransportStatus.Rejected, "Выберите IP-адрес источника и назначения.");
-                operations.Add(Patch.Add(row));
-                title = $"Добавление {key.Type}";
+                catch (ChangeValidationException ex) { return new(TransportStatus.Rejected, ex.Message); }
+                title = edit.Kind == ChangeKind.Copy ? $"Копирование {key.Type}" : $"Добавление {key.Type}";
                 break;
             case ChangeKind.Delete when session.Data.CanEdit(edit.Root):
                 kind = "delete";

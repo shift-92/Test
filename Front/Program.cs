@@ -19,6 +19,7 @@ builder.Services.AddHttpClient("TicketApi", http => http.BaseAddress = new Uri(b
 builder.Services.AddScoped<TicketEditor>();
 builder.Services.AddSingleton<Front.WebDataService>();
 builder.Services.AddSingleton(Common.Ticket.Metadata.ModelRegistry.Scan(typeof(Common.Ticket.Domain.DbItSystem).Assembly));
+builder.Services.AddSingleton<Common.Ticket.Services.EditorObjectFactory>();
 builder.Services.AddSingleton<Common.Ticket.Engine.HistoryEngine>();
 builder.Services.AddSingleton<Common.Ticket.Engine.BulkDeletePlanner>();
 builder.Services.AddSingleton<Common.Ticket.Engine.RestorePlanner>();

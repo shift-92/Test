@@ -24,17 +24,18 @@ public sealed record PreparedAddition(EntityKey Root, IReadOnlyList<EntityState>
 public sealed class EditorObjectFactory(ModelRegistry registry)
 {
     public PreparedAddition Create<T>(IReadOnlyDictionary<string, object?>? values = null) where T : class, ITicketModel => Create(typeof(T), values);
-    public PreparedAddition Create(string type, IReadOnlyDictionary<string, object?>? values = null) => Create(registry.Get(type).ClrType, values);
-    public PreparedAddition Create(Type type, IReadOnlyDictionary<string, object?>? values = null)
+    public PreparedAddition Create(string type, IReadOnlyDictionary<string, object?>? values = null, Guid? rootId = null) => Create(registry.Get(type).ClrType, values, rootId);
+    public PreparedAddition Create(Type type, IReadOnlyDictionary<string, object?>? values = null, Guid? rootId = null)
     {
         var m = registry.Get(type);
         var model = (ITicketModel)Activator.CreateInstance(m.ClrType)!;
-        model.Id = Guid.NewGuid();
+        model.Id = rootId ?? Guid.NewGuid();
+        if (model.Id == Guid.Empty) throw new ChangeValidationException("Пустой идентификатор объекта.");
         var row = FlatMapper.CaptureRow(registry, model);
         ApplyValues(row, values);
         return new(row.Key, [row], new Dictionary<EntityKey, EntityKey>());
     }
-    public PreparedAddition Copy(EditorState state, EntityKey source, IReadOnlyList<CopyRelation>? relations = null, IReadOnlyDictionary<string, object?>? rootValues = null)
+    public PreparedAddition Copy(EditorState state, EntityKey source, IReadOnlyList<CopyRelation>? relations = null, IReadOnlyDictionary<string, object?>? rootValues = null, Guid? rootId = null)
     {
         if (!state.Entities.TryGetValue(source, out var sourceRow) || sourceRow.IsDeleted) throw new ChangeValidationException("Источник отсутствует или удален.");
         var selected = new HashSet<EntityKey> { source };
@@ -57,7 +58,9 @@ public sealed class EditorObjectFactory(ModelRegistry registry)
             }
         }
         Collect(source, relations ?? []);
-        var map = selected.ToDictionary(x => x, x => new EntityKey(x.Type, Guid.NewGuid()));
+        if (rootId is Guid id && (id == Guid.Empty || state.Entities.ContainsKey(new(source.Type, id))))
+            throw new ChangeValidationException("Недопустимый идентификатор копии.");
+        var map = selected.ToDictionary(x => x, x => new EntityKey(x.Type, x == source && rootId.HasValue ? rootId.Value : Guid.NewGuid()));
         var rows = new List<EntityState>();
         foreach (var key in selected)
         {
