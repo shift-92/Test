@@ -2,7 +2,7 @@
 @implements IAsyncDisposable
 @using UniversalTables.Query
 @using UniversalTables.Drafts
-@inject ModelRegistry Registry
+@inject TableModelRegistry Registry
 @inject TableOptions Options
 @inject IServiceProvider Services
 @inject IJSRuntime JS
@@ -150,13 +150,13 @@
     [Parameter] public EventCallback<CellContext> ReadOnlyCellClicked {get;set;}
     [Parameter] public EventCallback<TableSelection> SelectionChanged {get;set;}
     [Parameter] public EventCallback<RowOperationRequest> RowOperationRequested {get;set;}
-    private readonly HashSet<EntityKey> _selection=[];
-    private EntityKey? _anchor,_menuEntity;
+    private readonly HashSet<TableKey> _selection=[];
+    private TableKey? _anchor,_menuEntity;
     private ElementReference _menuHost;
     private double _menuX,_menuY;
     private bool _selectionChanged;
     public IReadOnlyList<object> SelectedObjects=>_rows.Where(row=>_selection.Contains(Key(row))).ToArray();
-    public IReadOnlyList<EntityKey> SelectedKeys=>SelectedObjects.Select(Key).ToArray();
+    public IReadOnlyList<TableKey> SelectedKeys=>SelectedObjects.Select(Key).ToArray();
     public IReadOnlyList<Guid> SelectedIds=>SelectedKeys.Select(key=>key.Id).ToArray();
     public async Task ClearSelectionAsync()
     {
@@ -164,7 +164,7 @@
         await NotifySelectionAsync(); StateHasChanged();
     }
     private Task NotifySelectionAsync()=>SelectionChanged.InvokeAsync(new TableSelection(SelectedObjects,SelectedKeys));
-    private async Task SelectRowAsync(EntityKey key,MouseEventArgs e)
+    private async Task SelectRowAsync(TableKey key,MouseEventArgs e)
     {
         if(_field is not null) return;
         var additive=e.CtrlKey || e.MetaKey;
@@ -185,7 +185,7 @@
         await NotifySelectionAsync();
     }
     private Task TableKeyAsync(KeyboardEventArgs e)=>e.Key=="Escape" ? ClearSelectionAsync() : Task.CompletedTask;
-    private void OpenRowMenu(EntityKey key,MouseEventArgs e)
+    private void OpenRowMenu(TableKey key,MouseEventArgs e)
     {
         if(_field is not null || _bulkBusy) return;
         var row=_rows.FirstOrDefault(row=>Key(row)==key);
@@ -199,7 +199,7 @@
     [JSInvokable]
     public void CloseRowMenu() { _menuEntity=null; _contextMenu=null; StateHasChanged(); }
     private void MenuKey(KeyboardEventArgs e) { if(e.Key=="Escape") CloseRowMenu(); }
-    private bool CanOperate(EntityKey key)=>_field is null && Data.CanEdit(key) && !Data.GetRowState(key).IsDeleted && !Dispatcher.IsBlocked(Data.Context.OperationScope(key));
+    private bool CanOperate(TableKey key)=>_field is null && Data.CanEdit(key) && !Data.GetRowState(key).IsDeleted && !Dispatcher.IsBlocked(Data.Context.OperationScope(key));
     private async Task OperateAsync(RowOperation operation)
     {
         if(_menuEntity is not { } key || !CanOperate(key)) return;
@@ -232,7 +232,7 @@
     private bool _initialized;
     private static string N(double value)=>value.ToString("0.###",CultureInfo.InvariantCulture);
     private static string Width(TableColumn c)=>$"width:{N(c.Width)}px;min-width:{N(c.Width)}px;max-width:{N(c.Width)}px";
-    private EntityKey Key(object row)=>new(_registration.ObjectType,((ITableModel)row).Id);
+    private TableKey Key(object row)=>new(_registration.ObjectType,((ITableModel)row).Id);
     private IReadOnlyList<object> ReadRows()=>Data.Rows(ModelType);
     protected override async Task OnInitializedAsync()
     {

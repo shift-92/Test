@@ -20,9 +20,9 @@ public sealed class DelegateLayoutStore(
     public Task SaveUserAsync(string settingsType,Guid userId,IReadOnlyList<ColumnLayout> columns,CancellationToken token)=>save(settingsType,userId,columns,token);
 }
 public sealed class DelegateDeletionService(
-    Func<EntityKey,CancellationToken,Task<DeletePreview>> delete,
-    Func<EntityKey,CancellationToken,Task<DeletePreview>> restore) : IDeletionService
+    Func<TableKey,CancellationToken,Task<DeletePreview>> delete,
+    Func<TableKey,CancellationToken,Task<DeletePreview>> restore) : IDeletionService
 {
-    public Task<DeletePreview> PreviewDeleteAsync(EntityKey root,CancellationToken token)=>delete(root,token);
-    public Task<DeletePreview> PreviewRestoreAsync(EntityKey root,CancellationToken token)=>restore(root,token);
+    public Task<DeletePreview> PreviewDeleteAsync(TableKey root,CancellationToken token)=>delete(root,token);
+    public Task<DeletePreview> PreviewRestoreAsync(TableKey root,CancellationToken token)=>restore(root,token);
 }

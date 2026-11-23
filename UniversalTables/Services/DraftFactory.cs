@@ -6,7 +6,7 @@ namespace UniversalTables.Services;
 
 public sealed record FormSession(FormDraft Draft,IReadOnlyList<TableColumn> Columns);
 
-public sealed class DraftFactory(ModelRegistry registry,IServiceProvider services,ITableDefaultsProvider defaults)
+public sealed class DraftFactory(TableModelRegistry registry,IServiceProvider services,ITableDefaultsProvider defaults)
 {
     public FormSession Create(Type type,ITableDataSource data,ChangeKind kind,object? source=null,
         IReadOnlyDictionary<string,object?>? fixedValues=null,bool includeCollections=true)
@@ -30,7 +30,7 @@ public sealed class DraftFactory(ModelRegistry registry,IServiceProvider service
                 if(column.PropertyPath.Contains('.')) continue;
                 var child=registry.Get(column.Collection!.ElementType);
                 var children=data.Rows(child.Type).Where(row=>
-                    !data.GetRowState(new EntityKey(child.ObjectType,((ITableModel)row).Id)).IsDeleted);
+                    !data.GetRowState(new TableKey(child.ObjectType,((ITableModel)row).Id)).IsDeleted);
                 draft.Collections.Add(new CollectionDraft(draft,column,child,child.CreateColumns(services),children,defaults));
             }
         }

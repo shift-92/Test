@@ -11,13 +11,13 @@ public sealed class WorkspaceWindow
     public required string Title {get;init;}
     public TableWindowRequest? Table {get;init;}
     public FormSession? Form {get;init;}
-    public EntityKey? Entity {get;init;}
+    public TableKey? Entity {get;init;}
     public bool Restore {get;init;}
     public bool Busy {get;internal set;}
 }
 
 // One controller per page/workspace. Do not register a global singleton.
-public sealed class WorkspaceController(ModelRegistry registry,DraftFactory factory,ITableDataSource data)
+public sealed class WorkspaceController(TableModelRegistry registry,DraftFactory factory,ITableDataSource data)
 {
     private readonly List<WorkspaceWindow> _windows=[];
     public IReadOnlyList<WorkspaceWindow> Windows=>_windows;
@@ -46,7 +46,7 @@ public sealed class WorkspaceController(ModelRegistry registry,DraftFactory fact
         var title=(kind switch {ChangeKind.Add=>"Добавление",ChangeKind.Copy=>"Копирование",_=>"Редактирование"})+": "+model.Title;
         Push(new(){Kind=WorkspaceWindowKind.Form,Title=title,Form=session});
     }
-    public void OpenDeletion(EntityKey entity,bool restore=false)
+    public void OpenDeletion(TableKey entity,bool restore=false)
     {
         registry.Get(entity.ObjectType);
         if(restore && data.Context.Mode!=TableMode.Ticket) throw new InvalidOperationException("Восстановление доступно только в заявке.");

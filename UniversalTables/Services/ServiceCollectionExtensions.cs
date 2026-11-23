@@ -6,9 +6,9 @@ namespace UniversalTables.Services;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddUniversalTables(this IServiceCollection services, Action<ModelRegistry> register, Action<TableOptions>? configure = null)
+    public static IServiceCollection AddUniversalTables(this IServiceCollection services, Action<TableModelRegistry> register, Action<TableOptions>? configure = null)
     {
-        var registry = new ModelRegistry(); register(registry);
+        var registry = new TableModelRegistry(); register(registry);
         services.AddSingleton(registry);
         var options = new TableOptions();
         configure?.Invoke(options);

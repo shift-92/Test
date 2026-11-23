@@ -66,7 +66,7 @@ public sealed class RuleRow : TicketRow
 
 public static class TicketTables
 {
-    public static void Register(ModelRegistry registry)
+    public static void Register(TableModelRegistry registry)
     {
         registry.Add<VmRow>("vm", "Vms", (_, c) =>
         {

@@ -5,7 +5,7 @@ namespace UniversalTables.Configuration;
 
 public sealed record ReferenceBinding(Type TargetType, string ForeignKeyPath, bool Nullable);
 public sealed record CollectionBinding(Type ElementType, string ForeignKey);
-public sealed record CellContext(object Row, EntityKey Entity, TableColumn Column, object? Value, CellDifference Difference);
+public sealed record CellContext(object Row, TableKey Entity, TableColumn Column, object? Value, CellDifference Difference);
 public sealed record FilterChoiceContext(TableColumn Column, object? Row, System.Text.Json.JsonElement Value, string Label, bool Available);
 public sealed class FieldDraft
 {

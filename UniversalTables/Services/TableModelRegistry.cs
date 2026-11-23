@@ -12,7 +12,7 @@ public sealed class ModelRegistration(Type type, string objectType, string title
     public Func<IServiceProvider,IReadOnlyList<TableMenuItem>>? ConfigureMenu { get; init; }
 }
 
-public sealed class ModelRegistry
+public sealed class TableModelRegistry
 {
     public GlobalFilterOperators FilterOperators { get; } = new();
     private readonly Dictionary<Type,ModelRegistration> _byType = [];

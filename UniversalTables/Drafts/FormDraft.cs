@@ -9,7 +9,7 @@ namespace UniversalTables.Drafts;
 public sealed class FormDraft
 {
     public Type ModelType { get; }
-    public EntityKey Root { get; }
+    public TableKey Root { get; }
     public Guid? SourceId { get; }
     public ChangeKind Kind { get; }
     public TableContext Context { get; }

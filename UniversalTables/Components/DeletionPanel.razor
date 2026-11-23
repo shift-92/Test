@@ -29,7 +29,7 @@
 </section>
 </BlockingOperation>
 @code {
-    [Parameter,EditorRequired] public EntityKey Root {get;set;}
+    [Parameter,EditorRequired] public TableKey Root {get;set;}
     [Parameter,EditorRequired] public ITableDataSource Data {get;set;}=default!;
     [Parameter] public bool Restore {get;set;}
     [Parameter] public EventCallback<DependencyGroup> DependencyRequested {get;set;}

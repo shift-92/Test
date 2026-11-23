@@ -8,7 +8,7 @@ using UniversalTables.Services;
 
 namespace Front.Tickets;
 
-public sealed class TicketEditor(IHttpClientFactory clients, ModelRegistry registry, Front.Components.Shared.ChangesViewService views, WebDataService cache) : ICommandTransport
+public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry registry, Front.Components.Shared.ChangesViewService views, WebDataService cache) : ICommandTransport
 {
     public TicketSession? Session { get; private set; }
     public event Action<CommandCompletion>? Completed;

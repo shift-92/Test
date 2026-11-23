@@ -8,7 +8,7 @@ public sealed record PathSegment(string Property, Guid? ElementId = null);
 public sealed record FieldChange(string ColumnId, IReadOnlyList<PathSegment> Path, JsonElement Value);
 public sealed record ChildChange(ChangeKind Kind, Guid Id, IReadOnlyList<FieldChange> Fields);
 public sealed record CollectionChange(string Property, string ChildObjectType, string ForeignKey, IReadOnlyList<ChildChange> Items);
-public sealed record EditRequest(ChangeKind Kind, EntityKey Root, Guid? SourceId, IReadOnlyList<FieldChange> Fields, IReadOnlyList<CollectionChange> Collections, IReadOnlyDictionary<string, JsonElement> FixedValues);
+public sealed record EditRequest(ChangeKind Kind, TableKey Root, Guid? SourceId, IReadOnlyList<FieldChange> Fields, IReadOnlyList<CollectionChange> Collections, IReadOnlyDictionary<string, JsonElement> FixedValues);
 
 public sealed record CommandEnvelope(Guid ActionId, string Scope, TableContext Context, JsonElement Request)
 {

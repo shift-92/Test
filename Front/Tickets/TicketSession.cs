@@ -20,7 +20,7 @@ public sealed class TicketSession
     private int _statusRevision = -1;
     public Guid ItSystemId { get; }
     public CompositeTableDataSource Data { get; }
-    private readonly ModelRegistry _registry;
+    private readonly TableModelRegistry _registry;
     private EditorState _original = new(), _current = new();
     internal EditorState Original => _original;
     internal EditorState Current => _current;
@@ -34,7 +34,7 @@ public sealed class TicketSession
     private Dictionary<HistoryKey, object>? _originalRows;
     private Dictionary<Type, HashSet<Guid>> _deleted = [];
 
-    public TicketSession(TicketSnapshot snapshot, ModelRegistry registry, ChangesViewService views, WebDataService cache)
+    public TicketSession(TicketSnapshot snapshot, TableModelRegistry registry, ChangesViewService views, WebDataService cache)
     {
         Id = snapshot.Id;
         ItSystemId = snapshot.OriginalRows.Single(r => r.Key.Type == "itSystem").Key.Id;

@@ -11,7 +11,7 @@ namespace UniversalTables.Components;
 public partial class UniversalTable
 {
     [Parameter] public EventCallback AddRequested {get;set;}
-    [Parameter] public EventCallback<EntityKey> RestoreRequested {get;set;}
+    [Parameter] public EventCallback<TableKey> RestoreRequested {get;set;}
     private IReadOnlyList<ColumnLayout> _defaultLayout=[];
     private IReadOnlyList<TableMenuItem> _customMenu=[];
     private IReadOnlyList<TableMenuItem> _menuItems=[];
@@ -120,11 +120,11 @@ public partial class UniversalTable
         try {if(item.Execute is not null) await item.Execute(context);}
         catch(Exception ex) {Error(ex.Message);}
     }
-    private async Task ApplyValueAsync(CellContext source,EntityKey[] selected)
+    private async Task ApplyValueAsync(CellContext source,TableKey[] selected)
     {
         if(_bulkBusy || !Editable(source)) return;
         var value=source.Column.Reference is { } reference ? FormDraft.ReadPath(source.Row,reference.ForeignKeyPath) : source.Value;
-        CommandEnvelope Build(EntityKey key)
+        CommandEnvelope Build(TableKey key)
         {
             var row=ReadRows().Single(r=>Key(r)==key);
             if(!CanOperate(key)) throw new InvalidOperationException("Одна из выделенных строк недоступна для изменения.");

@@ -10,7 +10,7 @@ public static class CollectionRelations
         if(property.PropertyType!=typeof(Guid) && property.PropertyType!=typeof(Guid?)) throw new ArgumentException("FK must be Guid/Guid?.");
         return row=>property.GetValue(row) is Guid id && id==parentId;
     }
-    public static IReadOnlyList<DependencyGroup> LiveDependencies(EntityKey root,ModelRegistry registry,ITableDataSource data)
+    public static IReadOnlyList<DependencyGroup> LiveDependencies(TableKey root,TableModelRegistry registry,ITableDataSource data)
     {
         if(data.Context.Mode!=TableMode.Live) throw new InvalidOperationException("Ticket deletion must use its history planner.");
         var model=registry.Get(root.ObjectType);

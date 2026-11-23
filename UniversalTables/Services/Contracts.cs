@@ -10,12 +10,12 @@ public interface ITableDataSource
     // In Ticket mode: merge cache and state by Id, state wins, tombstones suppress cache entries.
     IReadOnlyList<ReferenceOption> ReferenceOptions(Type registeredType);
     ReferenceOption? ResolveReference(Type registeredType, Guid id);
-    RowState GetRowState(EntityKey key);
+    RowState GetRowState(TableKey key);
     CellDifference GetDifference(CellKey key);
     // A typed snapshot lets column templates render the previous value just like a table cell.
-    object? GetOriginalRow(EntityKey key) => null;
-    bool CanEdit(EntityKey key);
-    bool CanRestore(EntityKey key) => Context.Mode == TableMode.Ticket && GetRowState(key).IsDeleted && CanEdit(key);
+    object? GetOriginalRow(TableKey key) => null;
+    bool CanEdit(TableKey key);
+    bool CanRestore(TableKey key) => Context.Mode == TableMode.Ticket && GetRowState(key).IsDeleted && CanEdit(key);
     event Action<DataInvalidation>? Invalidated;
 }
 
@@ -38,8 +38,8 @@ public interface ITableLayoutStore
 public interface IDeletionService
 {
     // Live: inspect immediate child collections. Ticket: delegate to history planners.
-    Task<DeletePreview> PreviewDeleteAsync(EntityKey root, CancellationToken cancellationToken);
-    Task<DeletePreview> PreviewRestoreAsync(EntityKey root, CancellationToken cancellationToken);
+    Task<DeletePreview> PreviewDeleteAsync(TableKey root, CancellationToken cancellationToken);
+    Task<DeletePreview> PreviewRestoreAsync(TableKey root, CancellationToken cancellationToken);
 }
 
 public interface ITableDefaultsProvider

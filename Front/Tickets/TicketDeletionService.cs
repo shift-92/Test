@@ -3,11 +3,11 @@ using Common.Ticket.Engine;
 using Common.Ticket.Models;
 using UniversalTables.Models;
 using UniversalTables.Services;
-using TableKey = UniversalTables.Models.EntityKey;
+using TableKey = UniversalTables.Models.TableKey;
 
 namespace Front.Tickets;
 
-public sealed class TicketDeletionService(TicketEditor editor, ModelRegistry registry, Common.Ticket.Metadata.ModelRegistry schema,
+public sealed class TicketDeletionService(TicketEditor editor, TableModelRegistry registry, Common.Ticket.Metadata.ModelRegistry schema,
     CommandPlanner planner, HistoryEngine engine) : IDeletionService
 {
     public Task<DeletePreview> PreviewDeleteAsync(TableKey root, CancellationToken ct) => PreviewAsync(root, false, ct);
