@@ -83,15 +83,17 @@ public sealed class TicketSession
     private Dictionary<Type, IReadOnlyList<object>> Materialize(IEnumerable<EntityState> states)
     {
         var byType = states.ToLookup(r => r.Key.Type);
+        var deletedRows = new HashSet<object>(ReferenceEqualityComparer.Instance);
         var rows = new Dictionary<Type, IReadOnlyList<object>>();
         foreach (var model in _registry.All)
             rows[model.Type] = [.. byType[model.ObjectType].Select(r =>
             {
                 var row = (TicketRow)JsonSerializer.SerializeToElement(r.Properties).Deserialize(model.Type, ChangeJson.Options)!;
                 row.Id = r.Key.Id;
+                if (r.IsDeleted) deletedRows.Add(row);
                 return (object)row;
             })];
-        RowRelations.Rebuild(rows);
+        RowRelations.Rebuild(rows, child => !deletedRows.Contains(child));
         return rows;
     }
 

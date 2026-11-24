@@ -7,7 +7,7 @@ namespace UniversalTables.Services;
 public static class RowRelations
 {
     // Перестраивайте навигационные свойства для строк, принадлежащих снимку (snapshot); никогда не изменяйте строки в общем кэше.
-    public static void Rebuild(IReadOnlyDictionary<Type, IReadOnlyList<object>> rows)
+    public static void Rebuild(IReadOnlyDictionary<Type, IReadOnlyList<object>> rows, Func<object, bool>? includeChild = null)
     {
         var byId = rows.ToDictionary(pair => pair.Key, pair => pair.Value.ToDictionary(row => ((ITableModel)row).Id));
         foreach (var (type, instances) in rows)
@@ -33,7 +33,8 @@ public static class RowRelations
                 var key = childType.GetProperty(keyName) ?? throw new InvalidOperationException($"Неизвестный внешний ключ: {childType.Name}.{keyName}");
                 ValidateKey(key);
                 var children = rows.GetValueOrDefault(childType) ?? Array.Empty<object>();
-                var childrenByParent = children.ToLookup(child => (Guid?)key.GetValue(child));
+                var collectionMembers = includeChild is null ? children : children.Where(includeChild);
+                var childrenByParent = collectionMembers.ToLookup(child => (Guid?)key.GetValue(child));
                 foreach (var parent in instances)
                 {
                     if (property.GetValue(parent) is not IList list) throw new InvalidOperationException($"Коллекция не инициализирована: {type.Name}.{property.Name}");
