@@ -3,7 +3,7 @@
 .ut button:disabled,.ut-filter button:disabled,.ut-editor button:disabled{opacity:.5;cursor:default}
 .ut-toolbar{display:flex;gap:8px;min-height:30px;padding:3px 6px;border-bottom:1px solid #80808040}
 .ut-toolbar button{background:transparent;border:1px solid #80808050;border-radius:3px}
-.ut-viewport{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
+.ut-viewport{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;container-type:inline-size}
 .ut-content{min-width:100%}
 .ut-header{position:sticky;top:0;z-index:4}
 .ut-header-titles,.ut-header-filters,.ut-row{display:flex;width:100%}
@@ -90,5 +90,8 @@
 .ut-menu-separator{flex-shrink:0;border-top:1px solid var(--mud-palette-divider,#80808040);margin:4px 0}
 .ut-row-menu button{font:inherit;text-align:left;padding:7px 12px;border:0;background:transparent;color:inherit;cursor:pointer}
 .ut-row-menu button:hover{background:#80808030}.ut-row-menu button:disabled{opacity:.5;cursor:default}
-.ut-menu-branch>button{display:flex;justify-content:space-between;align-items:center;gap:20px;width:100%}.ut-row-menu button:focus-visible{outline:2px solid var(--mud-palette-primary,#078dbb);outline-offset:-2px}.ut-group{align-items:center;gap:8px;background:#078dbb20;white-space:nowrap;overflow:hidden}.ut-group button{background:transparent;border:0}.ut-long-text{height:240px;resize:vertical;white-space:pre-wrap}
+.ut-menu-branch>button{display:flex;justify-content:space-between;align-items:center;gap:20px;width:100%}.ut-row-menu button:focus-visible{outline:2px solid var(--mud-palette-primary,#078dbb);outline-offset:-2px}
+.ut-group{align-items:center;background:#078dbb20}
+.ut-group-content{position:sticky;left:0;display:flex;align-items:center;gap:8px;box-sizing:border-box;max-width:100cqw}
+.ut-group button{background:transparent;border:0}.ut-long-text{height:240px;resize:vertical;white-space:pre-wrap}
 .ut-date-tree{max-height:280px;overflow:auto}.ut-date-tree details details{margin-left:16px}.ut-date-node{display:inline-flex;align-items:center;gap:5px;min-height:26px}.ut-date-tree details>label{display:flex;margin-left:32px}

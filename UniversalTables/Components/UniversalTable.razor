@@ -57,9 +57,11 @@
                         <ItemContent>
                             @if(entry.Row is not { } row)
                             {
-                                <div @key="entry.Path" class="ut-row ut-group" data-group="@_groups[entry.Depth]" style="@($"padding-left:{entry.Depth*20+64}px")">
-                                    <button disabled="@(_field is not null)" @onclick="()=>ToggleGroup(entry.Path)">@(_collapsed.Contains(entry.Path) ? "▶" : "▼")</button>
-                                    <span>@entry.Label (@entry.Count)</span>
+                                <div @key="entry.Path" class="ut-row ut-group" data-group="@_groups[entry.Depth]">
+                                    <div class="ut-group-content" style="@($"padding-left:{entry.Depth*20+64}px")">
+                                        <button disabled="@(_field is not null)" @onclick="()=>ToggleGroup(entry.Path)">@(_collapsed.Contains(entry.Path) ? "▶" : "▼")</button>
+                                        <span class="ut-ellipsis">@entry.Label (@entry.Count)</span>
+                                    </div>
                                 </div>
                             }
                             else
