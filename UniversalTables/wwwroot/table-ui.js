@@ -14,7 +14,51 @@ function positionTooltipAt(tooltip, pointer) {
     tooltip.style.top = `${Math.max(top, Math.min(y, bottom - rect.height))}px`;
 }
 
-export function attachReferenceTooltip(root) {
+export function attachReferenceAutocomplete(root) {
+    const tooltip = attachReferenceTooltip(root);
+    const input = root.querySelector('input');
+    let list = null, tracking = null;
+    const position = () => {
+        if (!list?.isConnected) return;
+        const rect = input.getBoundingClientRect();
+        const view = window.visualViewport;
+        const left = view?.offsetLeft ?? 0, top = view?.offsetTop ?? 0;
+        const width = view?.width ?? document.documentElement.clientWidth;
+        const bottom = top + (view?.height ?? document.documentElement.clientHeight);
+        const above = Math.max(0, rect.top - top), below = Math.max(0, bottom - rect.bottom);
+        const listWidth = Math.min(rect.width, width);
+        list.style.width = `${listWidth}px`;
+        const openAbove = below < Math.min(240, list.scrollHeight + 2) && above > below;
+        list.style.maxHeight = `${Math.min(240, openAbove ? above : below)}px`;
+        list.style.left = `${Math.max(left, Math.min(rect.left, left + width - listWidth))}px`;
+        list.style.top = `${openAbove ? rect.top - list.offsetHeight : rect.bottom}px`;
+    };
+    const resize = new ResizeObserver(position);
+    const sync = () => {
+        const next = root.querySelector('.ut-reference-options');
+        if (next !== list) {
+            tracking?.abort();
+            resize.disconnect();
+            list = next;
+            if (!list) return;
+            list.showPopover();
+            tracking = new AbortController();
+            const { signal } = tracking;
+            document.addEventListener('scroll', position, { capture: true, signal });
+            window.addEventListener('resize', position, { signal });
+            window.visualViewport?.addEventListener('resize', position, { signal });
+            window.visualViewport?.addEventListener('scroll', position, { signal });
+            resize.observe(input);
+        }
+        position();
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    sync();
+    return { dispose() { observer.disconnect(); tracking?.abort(); resize.disconnect(); tooltip.dispose(); } };
+}
+
+function attachReferenceTooltip(root) {
     const abort = new AbortController();
     const signal = abort.signal;
     const tooltip = document.createElement('div');
