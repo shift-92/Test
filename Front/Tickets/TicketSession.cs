@@ -34,6 +34,14 @@ public sealed class TicketSession
     private Dictionary<HistoryKey, object>? _originalRows;
     private Dictionary<Type, HashSet<Guid>> _deleted = [];
 
+    public bool HasTableChanges(Type type)
+    {
+        var objectType = _registry.Get(type).ObjectType;
+        return Work.Any(item => item.Entity.Type == objectType)
+            || _collectionChanges.Keys.Any(cell => cell.Entity.ObjectType == objectType)
+            || _deleted[type].Count > 0;
+    }
+
     public TicketSession(TicketSnapshot snapshot, TableModelRegistry registry, ChangesViewService views, WebDataService cache)
     {
         Id = snapshot.Id;

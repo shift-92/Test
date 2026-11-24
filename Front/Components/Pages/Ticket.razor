@@ -46,7 +46,7 @@ else
         <MudTabs @key="session" KeepPanelsAlive="true">
             @foreach (var type in TableTypes)
             {
-                <MudTabPanel @key="type" Text="@Registry.Get(type).Title">
+                <MudTabPanel @key="type" Text="@Registry.Get(type).Title" Style="@ChangedTabStyle(session.HasTableChanges(type))">
                     <UniversalTable ModelType="type" Data="session.Data" LayoutStore="LayoutStore"
                                     CollectionRequested="cell => OpenCollection(workspace, cell)"
                                     AddRequested="() => workspace.OpenForm(type, ChangeKind.Add)"
@@ -56,8 +56,8 @@ else
                     </UniversalTable>
                 </MudTabPanel>
             }
-            <MudTabPanel Text="Журнал изменений"><ChangeLog Entries="session.Log" /></MudTabPanel>
-            <MudTabPanel Text="План работ"><ChangeWorkPlan Items="session.Work" /></MudTabPanel>
+            <MudTabPanel Text="Журнал изменений" Style="@ChangedTabStyle(session.Log.Count > 0)"><ChangeLog Entries="session.Log" /></MudTabPanel>
+            <MudTabPanel Text="План работ" Style="@ChangedTabStyle(session.Work.Count > 0)"><ChangeWorkPlan Items="session.Work" /></MudTabPanel>
         </MudTabs>
         <TableWorkspace @key="workspace" Controller="workspace">
             <TableTemplate Context="table">
@@ -95,6 +95,7 @@ else
     private bool _busy;
 
     private static bool Valid(string? text) => Guid.TryParse(text, out var id) && id != Guid.Empty;
+    private static string? ChangedTabStyle(bool changed) => changed ? "background-color:#e9b94920;box-shadow:inset 2px 0 #e9b949" : null;
     private static string StatusText(EnumTicketStatus status) => status switch
     {
         EnumTicketStatus.Create => "Создана",
