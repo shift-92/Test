@@ -9,22 +9,24 @@
 <BlockingOperation Busy="_busy">
 <section class="ut4-form" @onkeydown="KeyDown">
     <header><h3>@Title</h3></header>
-    <div class="ut4-fields">
-        @foreach(var field in Session.Draft.Fields)
+    <div class="ut4-form-body">
+        <div class="ut4-fields">
+            @foreach(var field in Session.Draft.Fields)
+            {
+                <div class="ut4-field" @key="field.Column.Id">
+                    <label>@field.Column.Title @if(field.Column.Required) { <span>*</span> }</label>
+                    <TableFieldInput Field="field" Data="Data" />
+                </div>
+            }
+        </div>
+        @foreach(var collection in Session.Draft.Collections)
         {
-            <div class="ut4-field" @key="field.Column.Id">
-                <label>@field.Column.Title @if(field.Column.Required) { <span>*</span> }</label>
-                <TableFieldInput Field="field" Data="Data" />
-            </div>
+            <CollectionFormEditor @key="collection" Draft="collection" Data="Data"
+                Columns="ChildColumns(collection)" Disabled="@(_busy || _uncertain)" />
         }
+        @if(_error is not null) { <div class="ut4-error" role="alert">@_error</div> }
+        @if(_uncertain) { <p>Результат операции неизвестен. Повторная отправка заблокирована. Требуется сверка с сервером.</p> }
     </div>
-    @foreach(var collection in Session.Draft.Collections)
-    {
-        <CollectionFormEditor @key="collection" Draft="collection" Data="Data"
-            Columns="ChildColumns(collection)" Disabled="@(_busy || _uncertain)" />
-    }
-    @if(_error is not null) { <div class="ut4-error" role="alert">@_error</div> }
-    @if(_uncertain) { <p>Результат операции неизвестен. Повторная отправка заблокирована. Требуется сверка с сервером.</p> }
     <footer>
         @if(_busy) { <span>Ожидание подтверждения…</span> }
         <button type="button" disabled="@_busy" @onclick="CancelAsync">Отмена</button>

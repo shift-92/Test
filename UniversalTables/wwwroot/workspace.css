@@ -7,6 +7,9 @@
 .ut5-dialog-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .ut5-dialog-actions>button{background:transparent;border:0;color:inherit;font-size:24px;cursor:pointer}.ut5-dialog-actions>button:disabled{opacity:.4;cursor:default}
 .ut5-dialog-content{padding:16px;overflow:auto;min-height:0}
+.ut5-dialog-form-content{display:flex;flex-direction:column;overflow:hidden}
+/* Carry the dialog's height constraint through the blocking-operation wrappers. */
+.ut5-dialog-form-content>div,.ut5-dialog-form-content>div>div:first-child,.ut5-dialog-form-content .ut4-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
 .ut5-layer-maximized{padding:0}
 .ut5-layer-maximized>.ut5-dialog{width:100%;height:100%;max-height:100%;border-radius:0}
 .ut5-dialog-header{flex-shrink:0}

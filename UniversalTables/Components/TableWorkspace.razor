@@ -16,7 +16,7 @@
                     <button type="button" disabled="@window.Busy" aria-label="Закрыть" @onclick="()=>Close(window)">×</button>
                 </div>
             </header>
-            <div class="@(window.Kind==WorkspaceWindowKind.Table ? "ut5-dialog-content ut5-dialog-table-content" : "ut5-dialog-content")">
+            <div class="ut5-dialog-content @(window.Kind switch { WorkspaceWindowKind.Table => "ut5-dialog-table-content", WorkspaceWindowKind.Form => "ut5-dialog-form-content", _ => "" })">
             @switch(window.Kind)
             {
                 case WorkspaceWindowKind.Table:
