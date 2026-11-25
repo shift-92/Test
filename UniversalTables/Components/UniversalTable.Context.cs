@@ -11,6 +11,7 @@ namespace UniversalTables.Components;
 public partial class UniversalTable
 {
     [Parameter] public EventCallback AddRequested {get;set;}
+    [Parameter] public EventCallback<IReadOnlyList<TableKey>> DeleteSelectedRequested {get;set;}
     [Parameter] public EventCallback<TableKey> RestoreRequested {get;set;}
     private IReadOnlyList<ColumnLayout> _defaultLayout=[];
     private IReadOnlyList<TableMenuItem> _customMenu=[];
@@ -56,6 +57,9 @@ public partial class UniversalTable
         }));
         items.Add(new() { Id="columns",Title="Видимость колонок",Order=300,Separator=TableMenuSeparator.Bottom,Children= [.. _columns.OrderBy(c=>c.Order).Select(VisibilityMenuItem)] });
         items.Add(Item("add","Добавить объект",400,()=>AddRequested.InvokeAsync(),()=>AddRequested.HasDelegate));
+        var deleteKeys=SelectedKeys;
+        items.Add(Item("delete-selected","Удалить выделенные",410,()=>DeleteSelectedRequested.InvokeAsync(deleteKeys),
+            ()=>DeleteSelectedRequested.HasDelegate && deleteKeys.Count>0 && deleteKeys.All(CanOperate)));
         items.Add(Item("ungroup","Отменить все группировки",500,()=>{_groups.Clear();_collapsed.Clear();BuildGroups();return Task.CompletedTask;},()=>_groups.Count>0));
         if(row is not null)
         {

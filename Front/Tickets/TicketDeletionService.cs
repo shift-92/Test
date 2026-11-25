@@ -13,6 +13,27 @@ public sealed class TicketDeletionService(TicketEditor editor, TableModelRegistr
     public Task<DeletePreview> PreviewDeleteAsync(TableKey root, CancellationToken ct) => PreviewAsync(root, false, ct);
     public Task<DeletePreview> PreviewRestoreAsync(TableKey root, CancellationToken ct) => PreviewAsync(root, true, ct);
 
+    public Task<DeletePreview> PreviewDeleteManyAsync(IReadOnlyList<TableKey> roots, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var session = editor.Session ?? throw new InvalidOperationException("Заявка уже закрыта.");
+        var command = new ChangeCommand { TicketId = session.Id, ActionId = Guid.NewGuid(), ExpectedSequence = session.Sequence,
+            Kind = "deleteMany", Title = "Предпросмотр", Entities = [.. roots.Select(k => new EntityKey(k.ObjectType, k.Id))] };
+        try
+        {
+            var plan = planner.Plan(command, session.Original, session.Current, session.Actions, session.Sequence);
+            engine.Apply(session.Current, plan.Operations);
+            var selected = roots.ToHashSet();
+            var affected = plan.Operations.Select(op => Patch.Parse(op.Path)).GroupBy(p => new TableKey(p.Key.Type, p.Key.Id)).ToArray();
+            return Task.FromResult(new DeletePreview(true, null, [], [.. affected.Select(g => g.Key)], session.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            {
+                Effects = [.. affected.Where(g => !selected.Contains(g.Key)).Select(g => new DependencyEffect(registry.Get(g.Key.ObjectType).Title,
+                    g.Key, [.. g.Where(p => p.Part == "property").Select(p => p.Property!)]))]
+            });
+        }
+        catch (ChangeValidationException e) { return Task.FromResult(new DeletePreview(false, e.Message, [], [])); }
+    }
+
     private Task<DeletePreview> PreviewAsync(TableKey root, bool restore, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();

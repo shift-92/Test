@@ -6,6 +6,7 @@
 <BlockingOperation Busy="@(_busy || _loading)">
 <section class="ut4-delete">
     <header><h3>@(Restore ? "Восстановление" : "Удаление")</h3></header>
+    @if(SelectedRoots is not null) { <p>Выбрано записей: @SelectedRoots.Count</p> }
     @if(_loading) { <p>Проверяем зависимости…</p> }
     else if(_preview is not null)
     {
@@ -17,6 +18,19 @@
             </button>
         }
         <p>Объектов в плане: @_preview.Affected.Count</p>
+        @if(SelectedRoots is not null && _preview.Allowed)
+        {
+            @if(_preview.Effects.Count==0) { <p>Зависимых записей нет.</p> }
+            @foreach(var group in _preview.Effects.GroupBy(e=>e.ClearedLinks.Count==0))
+            {
+                <details><summary>@(group.Key ? "Каскадное удаление" : "Сброс ссылок") (@group.Count())</summary>
+                    <ul>@foreach(var effect in group)
+                    {
+                        <li>@effect.Title: @effect.Entity.Id @string.Join(", ",effect.ClearedLinks)</li>
+                    }</ul>
+                </details>
+            }
+        }
         @if(Restore) { <p>Восстановление выполняется по актуальной группе удаления, без автоматической отмены чужих изменений FK.</p> }
         else if(Data.Context.Mode==TableMode.Ticket) { <p>Политики Cascade, Restrict и SetNull определяются движком истории.</p> }
     }
@@ -30,6 +44,7 @@
 </BlockingOperation>
 @code {
     [Parameter,EditorRequired] public TableKey Root {get;set;}
+    [Parameter] public IReadOnlyList<TableKey>? SelectedRoots {get;set;}
     [Parameter,EditorRequired] public ITableDataSource Data {get;set;}=default!;
     [Parameter] public bool Restore {get;set;}
     [Parameter] public EventCallback<DependencyGroup> DependencyRequested {get;set;}
@@ -50,7 +65,7 @@
         catch(Exception ex) when(!_disposed) { _error=ex.Message; }
         finally { _loading=false; }
     }
-    private Task<DeletePreview> Preview()=>Restore
+    private Task<DeletePreview> Preview()=>SelectedRoots is not null ? Deletions.PreviewDeleteManyAsync(SelectedRoots,_lifetime.Token) : Restore
         ? Deletions.PreviewRestoreAsync(Root,_lifetime.Token) : Deletions.PreviewDeleteAsync(Root,_lifetime.Token);
     private async Task ConfirmAsync()
     {
@@ -61,9 +76,17 @@
         {
             await BusyChanged.InvokeAsync(true);
             // Обновление предварительного просмотра не является окончательным: транспортный уровень/сервер должны выполнять перепланирование атомарно в момент отправки.
+            var shownVersion=_preview.Version;
             _preview=await Preview();
             if(!_preview.Allowed) return;
-            var request=new EditRequest(Restore ? ChangeKind.Restore : ChangeKind.Delete,Root,null,[],[],new Dictionary<string,System.Text.Json.JsonElement>());
+            if(SelectedRoots is not null && shownVersion!=_preview.Version)
+            {
+                _error="Данные изменились. Проверьте обновлённый план и подтвердите удаление ещё раз.";
+                return;
+            }
+            var kind=SelectedRoots is not null ? ChangeKind.DeleteMany : Restore ? ChangeKind.Restore : ChangeKind.Delete;
+            var request=new EditRequest(kind,Root,null,[],[],new Dictionary<string,System.Text.Json.JsonElement>())
+                {SelectedRoots=SelectedRoots,PreviewVersion=_preview.Version};
             var command=CommandEnvelope.Create(Data.Context,request);
             if(Dispatcher.IsBlocked(command.Scope)) throw new InvalidOperationException("Есть неподтверждённая операция.");
             result=await Dispatcher.SendAsync(command,TimeSpan.FromSeconds(30),_lifetime.Token);

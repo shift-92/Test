@@ -39,6 +39,8 @@ public interface IDeletionService
 {
     // Live: inspect immediate child collections. Ticket: delegate to history planners.
     Task<DeletePreview> PreviewDeleteAsync(TableKey root, CancellationToken cancellationToken);
+    Task<DeletePreview> PreviewDeleteManyAsync(IReadOnlyList<TableKey> roots, CancellationToken cancellationToken) =>
+        Task.FromResult(new DeletePreview(false,"Групповое удаление не поддерживается.",[],[]));
     Task<DeletePreview> PreviewRestoreAsync(TableKey root, CancellationToken cancellationToken);
 }
 

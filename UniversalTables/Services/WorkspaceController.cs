@@ -12,6 +12,7 @@ public sealed class WorkspaceWindow
     public TableWindowRequest? Table {get;init;}
     public FormSession? Form {get;init;}
     public TableKey? Entity {get;init;}
+    public IReadOnlyList<TableKey>? SelectedRoots {get;init;}
     public bool Restore {get;init;}
     public bool Busy {get;internal set;}
 }
@@ -51,6 +52,12 @@ public sealed class WorkspaceController(TableModelRegistry registry,DraftFactory
         registry.Get(entity.ObjectType);
         if(restore && data.Context.Mode!=TableMode.Ticket) throw new InvalidOperationException("Восстановление доступно только в заявке.");
         Push(new(){Kind=WorkspaceWindowKind.Delete,Title=restore ? "Восстановление" : "Удаление",Entity=entity,Restore=restore});
+    }
+    public void OpenBulkDeletion(IReadOnlyList<TableKey> selected)
+    {
+        var roots=selected.Distinct().ToArray();
+        if(roots.Length==0) throw new ArgumentException("Объекты не выбраны.",nameof(selected));
+        Push(new(){Kind=WorkspaceWindowKind.Delete,Title="Удалить выделенные",Entity=roots[0],SelectedRoots=roots});
     }
     public void OpenRecovery()=>Push(new(){Kind=WorkspaceWindowKind.Recovery,Title="Неподтверждённые операции"});
     public void SetBusy(Guid id,bool busy)

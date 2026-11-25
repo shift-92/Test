@@ -21,5 +21,9 @@ public sealed record ReferenceOption(Guid Id, string Label, bool Selectable = tr
     public string? Description { get; init; }
 }
 public sealed record DependencyGroup(string Title, string ChildObjectType, string ForeignKey, Guid ParentId, int Count);
-public sealed record DeletePreview(bool Allowed, string? Reason, IReadOnlyList<DependencyGroup> Dependencies, IReadOnlyList<TableKey> Affected, string? Version = null);
+public sealed record DependencyEffect(string Title, TableKey Entity, IReadOnlyList<string> ClearedLinks);
+public sealed record DeletePreview(bool Allowed, string? Reason, IReadOnlyList<DependencyGroup> Dependencies, IReadOnlyList<TableKey> Affected, string? Version = null)
+{
+    public IReadOnlyList<DependencyEffect> Effects { get; init; } = [];
+}
 public sealed record DataInvalidation(IReadOnlySet<string> ObjectTypes, long Version);

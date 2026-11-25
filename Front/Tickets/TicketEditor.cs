@@ -68,6 +68,8 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
                 return new(TransportStatus.Rejected, $"Недоступное поле: {field.Path[0].Property}.");
         }
         List<PatchOperation> operations = [];
+        List<EntityKey> entities = [];
+        var expectedSequence = session.Sequence;
         string kind = "patch", title;
         switch (edit.Kind)
         {
@@ -116,6 +118,14 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
                 kind = "delete";
                 title = $"Удаление {key.Type}";
                 break;
+            case ChangeKind.DeleteMany when edit.SelectedRoots is { Count: > 0 } roots && roots.Contains(edit.Root) &&
+                roots.All(k => k.ObjectType == key.Type && session.Data.CanEdit(k)):
+                if (edit.PreviewVersion != expectedSequence.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    return new(TransportStatus.Rejected, "Заявка изменилась. Проверьте план удаления ещё раз.");
+                kind = "deleteMany";
+                entities = [.. roots.Select(k => new EntityKey(k.ObjectType, k.Id)).Distinct()];
+                title = $"Удаление выделенных {key.Type}: {entities.Count}";
+                break;
             case ChangeKind.Restore when session.Data.CanRestore(edit.Root):
                 kind = "restore";
                 title = $"Восстановление {key.Type}";
@@ -125,8 +135,8 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
         }
         var command = new ChangeCommand
         {
-            Kind = kind, TicketId = session.Id, ActionId = envelope.ActionId, ExpectedSequence = session.Sequence,
-            Title = title, Entity = key, Operations = operations
+            Kind = kind, TicketId = session.Id, ActionId = envelope.ActionId, ExpectedSequence = expectedSequence,
+            Title = title, Entity = key, Entities = entities, Operations = operations
         };
         using var http = clients.CreateClient("TicketApi");
         using var response = await http.PostAsJsonAsync($"api/ticket/{session.Id}/commands", command, ChangeJson.Options, ct);

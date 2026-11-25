@@ -51,6 +51,7 @@ else
                                     CollectionRequested="cell => OpenCollection(workspace, cell)"
                                     AddRequested="() => workspace.OpenForm(type, ChangeKind.Add)"
                                     RowOperationRequested="request => Operate(workspace, request)"
+                                    DeleteSelectedRequested="workspace.OpenBulkDeletion"
                                     RestoreRequested="key => workspace.OpenDeletion(key, restore: true)">
                         <Toolbar><button type="button" @onclick="() => workspace.OpenForm(type, ChangeKind.Add)">Добавить</button></Toolbar>
                     </UniversalTable>
@@ -67,6 +68,7 @@ else
                                 CollectionRequested="cell => OpenCollection(workspace, cell)"
                                 AddRequested="AddChild"
                                 RowOperationRequested="request => Operate(workspace, request, table.FixedValues)"
+                                DeleteSelectedRequested="workspace.OpenBulkDeletion"
                                 RestoreRequested="key => workspace.OpenDeletion(key, restore: true)">
                     <Toolbar><button type="button" @onclick="AddChild">Добавить</button></Toolbar>
                 </UniversalTable>

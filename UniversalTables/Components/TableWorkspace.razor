@@ -30,6 +30,7 @@
                     break;
                 case WorkspaceWindowKind.Delete:
                     <DeletionPanel @key="window.Id" Root="window.Entity!.Value" Data="Controller.Data" Restore="window.Restore"
+                        SelectedRoots="window.SelectedRoots"
                         BusyChanged="busy=>Controller.SetBusy(window.Id,busy)" Cancelled="()=>Close(window)"
                         Completed="result=>Controller.Complete(window.Id,result)" DependencyRequested="OpenDependency" />
                     break;
