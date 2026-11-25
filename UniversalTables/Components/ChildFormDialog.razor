@@ -14,8 +14,12 @@
         @if(_error is not null) { <div class="ut4-error" role="alert">@_error</div> }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Dialog.Cancel">Отмена</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Finish">Готово</MudButton>
+        <div class="ut4-form" style="width: 100%;">
+            <footer>
+                <button type="button" @onclick="Dialog.Cancel">Отмена</button>
+                <button type="button" @onclick="Finish">Готово</button>
+            </footer>
+        </div>
     </DialogActions>
 </MudDialog>
 @code {
