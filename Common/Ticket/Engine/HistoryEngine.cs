@@ -66,17 +66,18 @@ public sealed class HistoryEngine(ModelRegistry registry)
         entity.Properties[path.Property!] = op.Value.Clone();
         return new("replace", op.Path, previous.Clone());
     }
-    public void Validate(EditorState state)
+    public void Validate(EditorState state) => Validate(state, false);
+    internal void Validate(EditorState state, bool allowSchemaDrift)
     {
         foreach (var pair in state.Entities)
         {
             var row = pair.Value;
             if (pair.Key != row.Key) throw new ChangeValidationException("Несоответствие ключа состояния.");
-            ValidateRow(row);
+            ValidateRow(row, allowSchemaDrift);
             if (row.IsDeleted) continue;
             foreach (var reference in registry.Get(row.Key.Type).References)
             {
-                var value = row.Properties[reference.Property];
+                if (!row.Properties.TryGetValue(reference.Property, out var value)) continue;
                 if (value.ValueKind == JsonValueKind.Null) continue;
                 var target = new EntityKey(reference.TargetType, value.GetGuid());
                 if (state.Entities.TryGetValue(target, out var entity) ? entity.IsDeleted : !reference.AllowOutsideSnapshot || target.Id == Guid.Empty)
@@ -84,12 +85,14 @@ public sealed class HistoryEngine(ModelRegistry registry)
             }
         }
     }
-    public void ValidateRow(EntityState row)
+    public void ValidateRow(EntityState row) => ValidateRow(row, false);
+    private void ValidateRow(EntityState row, bool allowSchemaDrift)
     {
         if (row.Key.Id == Guid.Empty) throw new ChangeValidationException("Пустой идентификатор сущности.");
         var m = registry.Get(row.Key.Type);
-        if (row.Properties.Count != m.Properties.Count || m.Properties.Keys.Any(x => !row.Properties.ContainsKey(x))) throw new ChangeValidationException($"Несоответствие схемы для {row.Key}.");
-        foreach (var p in m.Properties) ScalarValues.Read(p.Value, row.Properties[p.Key]);
+        if (!allowSchemaDrift && (row.Properties.Count != m.Properties.Count || m.Properties.Keys.Any(x => !row.Properties.ContainsKey(x)))) throw new ChangeValidationException($"Несоответствие схемы для {row.Key}.");
+        foreach (var p in m.Properties)
+            if (row.Properties.TryGetValue(p.Key, out var value)) ScalarValues.Read(p.Value, value);
     }
 }
 public static class HistoryReplay
