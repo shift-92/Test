@@ -68,7 +68,9 @@
                             else
                             {
                             var key=Key(row); var rowState=Data.GetRowState(key);
-                            <div @key="key" class="@($"ut-row {(rowState.IsDeleted ? "deleted" : rowState.IsAdded ? "added" : "")} {(_selection.Contains(key) ? "selected" : "")}")" data-row="@key.Id">
+                            var changeClass=rowState.IsDeleted ? "deleted" : rowState.IsAdded ? "added" :
+                                _columns.Any(column=>Data.GetDifference(new(key,column.Id)).Changed) ? "modified" : "";
+                            <div @key="key" class="@($"ut-row {changeClass} {(_selection.Contains(key) ? "selected" : "")}")" data-row="@key.Id">
                                 <div class="ut-row-controls">
                                     <button type="button" aria-label="Выделить строку" aria-pressed="@_selection.Contains(key)" disabled="@(_field is not null)" @onclick="e=>SelectRowAsync(key,e)">→</button>
                                     <button type="button" aria-label="Операции над строкой" disabled="@(_field is not null || _bulkBusy || (!RowOperationRequested.HasDelegate && !RestoreRequested.HasDelegate))" @onclick="e=>OpenRowMenu(key,e)">⋯</button>
@@ -171,6 +173,11 @@
     {
         if(_field is not null) return;
         var additive=e.CtrlKey || e.MetaKey;
+        if(!additive && !e.ShiftKey && _selection.Count==1 && _selection.Contains(key))
+        {
+            await ClearSelectionAsync();
+            return;
+        }
         var visibleRows=_flatRows.Where(x=>x.Row is not null).Select(x=>x.Row!).ToList();
         var start=_anchor is { } anchor ? visibleRows.FindIndex(row=>Key(row)==anchor) : -1;
         var end=visibleRows.FindIndex(row=>Key(row)==key);
