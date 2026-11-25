@@ -1,0 +1,32 @@
+@namespace UniversalTables.Components
+@using UniversalTables.Drafts
+<MudDialog>
+    <DialogContent>
+        <div class="ut4-fields">
+            @foreach(var field in Form.Fields)
+            {
+                <div class="ut4-field" @key="field.Column.Id">
+                    <label>@field.Column.Title</label>
+                    <TableFieldInput Field="field" Data="Data" />
+                </div>
+            }
+        </div>
+        @if(_error is not null) { <div class="ut4-error" role="alert">@_error</div> }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Dialog.Cancel">Отмена</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Finish">Готово</MudButton>
+    </DialogActions>
+</MudDialog>
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog {get;set;}=default!;
+    [Parameter,EditorRequired] public FormDraft Form {get;set;}=default!;
+    [Parameter,EditorRequired] public ITableDataSource Data {get;set;}=default!;
+    private string? _error;
+    private void Finish()
+    {
+        try { Form.Build(); }
+        catch(Exception ex) { _error=ex.Message; return; }
+        Dialog.Close(DialogResult.Ok(true));
+    }
+}

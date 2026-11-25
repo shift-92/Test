@@ -1,6 +1,7 @@
 @namespace UniversalTables.Components
 @using UniversalTables.Drafts
 @inject TableOptions Options
+@inject IDialogService Dialogs
 <section class="ut4-collection">
     <header>
         <strong>@Draft.Column.Title</strong>
@@ -39,31 +40,12 @@
             </Virtualize>
         </div>
     </div>
-    @if(_edit is not null)
-    {
-        <section class="ut4-child-edit">
-            <header><strong>@(_edit.Added ? "Новая запись" : "Редактирование записи")</strong></header>
-            <div class="ut4-fields">
-                @foreach(var field in _edit.Form.Fields)
-                {
-                    <div class="ut4-field" @key="field.Column.Id">
-                        <label>@field.Column.Title</label>
-                        <TableFieldInput Field="field" Data="Data" />
-                    </div>
-                }
-            </div>
-            <footer><button type="button" disabled="@Disabled" @onclick="Finish">Готово</button></footer>
-            @if(_error is not null) { <div class="ut4-error">@_error</div> }
-        </section>
-    }
 </section>
 @code {
     [Parameter,EditorRequired] public CollectionDraft Draft {get;set;}=default!;
     [Parameter,EditorRequired] public ITableDataSource Data {get;set;}=default!;
     [Parameter,EditorRequired] public IReadOnlyList<TableColumn> Columns {get;set;}=default!;
     [Parameter] public bool Disabled {get;set;}
-    private ChildDraftRow? _edit;
-    private string? _error;
     private string Width=>(110+Columns.Sum(c=>c.Width)).ToString("0.###",CultureInfo.InvariantCulture);
     private static string CellWidth(TableColumn c)=>$"width:{c.Width.ToString("0.###",CultureInfo.InvariantCulture)}px";
     private string Text(FieldDraft? field)
@@ -78,14 +60,18 @@
         foreach(var row in Draft.Rows)
             foreach(var field in row.Form.Fields) field.Busy=Disabled;
     }
-    private void Add() { if(Disabled) return; _edit=Draft.Add(); _error=null; }
-    private void Edit(ChildDraftRow row) { if(Disabled) return; _edit=row; _error=null; }
-    private void Delete(ChildDraftRow row) { if(Disabled) return; Draft.Delete(row); if(ReferenceEquals(_edit,row)) _edit=null; }
-    private void Restore(ChildDraftRow row) { if(!Disabled) Draft.Restore(row); }
-    private void Finish()
+    private Task Add()=>Edit(null);
+    private async Task Edit(ChildDraftRow? row)
     {
-        if(Disabled || _edit is null) return;
-        try { _edit.Form.Build(); _edit=null; _error=null; }
-        catch(Exception ex) { _error=ex.Message; }
+        if(Disabled) return;
+        var edited=row is null ? Draft.CreateRow() : new ChildDraftRow(new FormDraft(row.Form),row.Added);
+        var parameters=new DialogParameters<ChildFormDialog> {{x=>x.Form,edited.Form},{x=>x.Data,Data}};
+        var dialog=await Dialogs.ShowAsync<ChildFormDialog>(row is null ? "Новая запись" : "Редактирование записи",parameters,
+            new DialogOptions {FullWidth=true,MaxWidth=MaxWidth.Medium,CloseOnEscapeKey=true});
+        if(await dialog.Result is not {Canceled:false} || Disabled) return;
+        if(row is null) Draft.Rows.Add(edited);
+        else if(Draft.Rows.IndexOf(row) is var index && index>=0) Draft.Rows[index]=edited;
     }
+    private void Delete(ChildDraftRow row) { if(!Disabled) Draft.Delete(row); }
+    private void Restore(ChildDraftRow row) { if(!Disabled) Draft.Restore(row); }
 }

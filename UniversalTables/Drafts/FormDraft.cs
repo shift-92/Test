@@ -16,6 +16,19 @@ public sealed class FormDraft
     public List<FieldDraft> Fields { get; }=[];
     public List<CollectionDraft> Collections { get; }=[];
     private readonly Dictionary<string,JsonElement> _fixed=[];
+    internal FormDraft(FormDraft child)
+    {
+        if(child.Collections.Count!=0) throw new InvalidOperationException("Nested child collections are not supported.");
+        ModelType=child.ModelType; Root=child.Root; SourceId=child.SourceId; Kind=child.Kind; Context=child.Context;
+        foreach(var pair in child._fixed) _fixed.Add(pair.Key,pair.Value);
+        foreach(var field in child.Fields)
+        {
+            var copy=new FieldDraft {Column=field.Column,OriginalValue=field.OriginalValue,Value=field.Value,
+                ReadOnly=field.ReadOnly,Busy=field.Busy,Error=field.Error,IncludeInSubmission=field.IncludeInSubmission};
+            foreach(var pair in field.State) copy.State.Add(pair.Key,pair.Value);
+            Fields.Add(copy);
+        }
+    }
     public FormDraft(ModelRegistration registration,IReadOnlyList<TableColumn> columns,TableContext context, ChangeKind kind,object? source=null,IReadOnlyDictionary<string,object?>? defaults=null, IReadOnlyDictionary<string,object?>? fixedValues=null,Guid? newId=null,bool cellOperation=false)
     {
         if(kind is not (ChangeKind.Add or ChangeKind.Copy or ChangeKind.Edit)) throw new ArgumentException("Недопустимый тип формы.");

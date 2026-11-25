@@ -23,7 +23,7 @@ export function attach(host) {
         const dialog = current();
         if (!dialog || event.key !== 'Tab') return;
         // Autocomplete popovers are rendered outside the dialog; do not steal their keyboard interaction.
-        if (event.target instanceof Element && event.target.closest('.mud-popover')) return;
+        if (event.target instanceof Element && event.target.closest('.mud-popover,.mud-dialog-container')) return;
         const fields = focusable(dialog);
         if (!fields.length) { event.preventDefault(); dialog.focus(); return; }
         const first = fields[0], last = fields[fields.length - 1];

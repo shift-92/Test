@@ -28,7 +28,8 @@
 .ut-cell.ut-collection-link{cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .ut-row:hover{background:#80808015}
 .ut-cell.changed{background:#e9b94920;box-shadow:inset 2px 0 #e9b949}
-.ut-row.deleted{color:#ed8585;text-decoration:line-through;background:#d32f2f15}
+.ut-row.deleted{color:#ed8585;background:#d32f2f15}
+.ut-row.deleted>.ut-cell{text-decoration:line-through}
 .ut-row.added{color:#63cf98;background:#35b87820;box-shadow:inset 3px 0 #35b878}
 .ut-row.added>.ut-cell.changed,.ut-row.deleted>.ut-cell.changed{background:transparent;box-shadow:none}
 .ut-empty{padding:20px}

@@ -135,7 +135,7 @@ public partial class UniversalTable
             return CommandEnvelope.Create(Data.Context,draft.Build());
         }
         foreach(var key in selected) Build(key);
-        if(!await JS.InvokeAsync<bool>("confirm",$"Применить значение к {selected.Length} строкам? Операции выполняются последовательно; при ошибке уже подтверждённые изменения сохранятся.")) return;
+        if(await Dialogs.ShowMessageBoxAsync("Применить значение",$"Применить значение к {selected.Length} строкам? Операции выполняются последовательно; при ошибке уже подтверждённые изменения сохранятся.",yesText:"Применить",cancelText:"Отмена")!=true) return;
         _bulkBusy=true;
         var completed=0;
         try

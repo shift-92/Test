@@ -33,8 +33,12 @@ public sealed class CollectionDraft
     private IReadOnlyDictionary<string,object?> Fixed()=>new Dictionary<string,object?> {[_fk]=Parent.Root.Id};
     public ChildDraftRow Add()
     {
+        var row=CreateRow(); Rows.Add(row); return row;
+    }
+    internal ChildDraftRow CreateRow()
+    {
         var form=new FormDraft(_child,_columns,Parent.Context,ChangeKind.Add,defaults:_defaults.Defaults(_child.Type,ChangeKind.Add),fixedValues:Fixed());
-        var row=new ChildDraftRow(form,true); Rows.Add(row); return row;
+        return new(form,true);
     }
     public void Delete(ChildDraftRow row)
     {
