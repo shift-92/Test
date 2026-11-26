@@ -73,7 +73,10 @@
                             <div @key="key" class="@($"ut-row {changeClass} {(_selection.Contains(key) ? "selected" : "")}")" data-row="@key.Id">
                                 <div class="ut-row-controls">
                                     <button type="button" aria-label="Выделить строку" aria-pressed="@_selection.Contains(key)" disabled="@(_field is not null)" @onclick="e=>SelectRowAsync(key,e)">→</button>
-                                    <button type="button" aria-label="Операции над строкой" disabled="@(_field is not null || _bulkBusy || (!RowOperationRequested.HasDelegate && !RestoreRequested.HasDelegate))" @onclick="e=>OpenRowMenu(key,e)">⋯</button>
+                                    @if (RowOperationRequested.HasDelegate || RestoreRequested.HasDelegate)
+                                    {
+                                        <button type="button" aria-label="Операции над строкой" disabled="@(_field is not null || _bulkBusy)" @onclick="e=>OpenRowMenu(key,e)">⋯</button>
+                                    }
                                 </div>
                                 @foreach(var column in Visible)
                                 {

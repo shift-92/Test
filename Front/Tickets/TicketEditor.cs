@@ -14,6 +14,14 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
     public TicketSession? Session { get; private set; }
     public event Action<CommandCompletion>? Completed;
     private sealed record Created(Guid Id);
+    private sealed record ActiveTicket(Guid? Id);
+
+    public async Task<Guid?> FindActiveAsync(Guid itSystemId, CancellationToken ct)
+    {
+        using var http = clients.CreateClient("TicketApi");
+        var result = await http.GetFromJsonAsync<ActiveTicket>($"api/ticket/system/{itSystemId:D}/active", ct);
+        return (result ?? throw new InvalidDataException("Сервер не вернул результат поиска заявки.")).Id;
+    }
 
     public async Task<Guid> CreateAsync(Guid itSystemId, CancellationToken ct)
     {
@@ -41,10 +49,12 @@ public sealed class TicketEditor(IHttpClientFactory clients, TableModelRegistry 
         if (!ct.IsCancellationRequested && ReferenceEquals(Session, session)) session.Update(snapshot);
     }
 
-    public async Task<TicketSession> OpenAsync(Guid id, CancellationToken ct)
+    public async Task<TicketSession> OpenAsync(Guid itSystemId, Guid id, CancellationToken ct)
     {
         var snapshot = await ReadAsync(id, ct);
         ct.ThrowIfCancellationRequested();
+        if (!snapshot.OriginalRows.Any(row => row.Key.Type == "itSystem" && row.Key.Id == itSystemId))
+            throw new InvalidOperationException("Заявка не принадлежит указанной ИТ-системе.");
         return Session = new(snapshot, registry, views, cache);
     }
 

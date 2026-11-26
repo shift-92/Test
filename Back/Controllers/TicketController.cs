@@ -25,6 +25,21 @@ public class TicketController(DataContext db, IHubContext<TicketHub> hub, ILogge
 
     private Guid UserId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
 
+    // Запрос создания уже содержит ItSystemId, в том числе у ранее созданных заявок.
+    private Task<Guid?> FindActiveAsync(Guid itSystemId, CancellationToken ct) => db.Database.SqlQuery<Guid>($"""
+        SELECT TOP (1) t.Id AS [Value]
+        FROM dbo.tickets t JOIN dbo.ticket_statuses s ON s.TicketId = t.Id
+        WHERE s.Status = {(int)EnumTicketStatus.Create}
+          AND TRY_CONVERT(uniqueidentifier, JSON_VALUE(s.RequestJson, '$.itSystemId')) = {itSystemId}
+          AND t.CurrentStatus IN ({(int)EnumTicketStatus.Create}, {(int)EnumTicketStatus.Project},
+                                  {(int)EnumTicketStatus.Open}, {(int)EnumTicketStatus.InWork})
+        ORDER BY s.DateTimeUtc DESC, t.Id
+        """).Select(id => (Guid?)id).FirstOrDefaultAsync(ct);
+
+    [HttpGet("system/{itSystemId:guid}/active")]
+    public async Task<IActionResult> Active(Guid itSystemId, CancellationToken ct) =>
+        Ok(new { Id = await FindActiveAsync(itSystemId, ct) });
+
     [HttpPost]
     public async Task<IActionResult> Create(CreateRequest request, CancellationToken ct)
     {
@@ -32,6 +47,8 @@ public class TicketController(DataContext db, IHubContext<TicketHub> hub, ILogge
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var system = await db.ItSystems.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ItSystemId, ct);
         if (system is null) return NotFound();
+        if (await FindActiveAsync(request.ItSystemId, ct) is Guid existingId)
+            return Ok(new { Id = existingId });
 
         var vms = db.Vms.AsNoTracking().Where(x => x.ItSystemId == system.Id);
         var vmIds = vms.Select(x => x.Id);

@@ -56,12 +56,12 @@ public partial class UniversalTable
             await SaveLayoutAsync();
         }));
         items.Add(new() { Id="columns",Title="Видимость колонок",Order=300,Separator=TableMenuSeparator.Bottom,Children= [.. _columns.OrderBy(c=>c.Order).Select(VisibilityMenuItem)] });
-        items.Add(Item("add","Добавить объект",400,()=>AddRequested.InvokeAsync(),()=>AddRequested.HasDelegate));
+        if(AddRequested.HasDelegate) items.Add(Item("add","Добавить объект",400,()=>AddRequested.InvokeAsync()));
         var deleteKeys=SelectedKeys;
-        items.Add(Item("delete-selected","Удалить выделенные",410,()=>DeleteSelectedRequested.InvokeAsync(deleteKeys),
-            ()=>DeleteSelectedRequested.HasDelegate && deleteKeys.Count>0 && deleteKeys.All(CanOperate)));
+        if(DeleteSelectedRequested.HasDelegate) items.Add(Item("delete-selected","Удалить выделенные",410,()=>DeleteSelectedRequested.InvokeAsync(deleteKeys),
+            ()=>deleteKeys.Count>0 && deleteKeys.All(CanOperate)));
         items.Add(Item("ungroup","Отменить все группировки",500,()=>{_groups.Clear();_collapsed.Clear();BuildGroups();return Task.CompletedTask;},()=>_groups.Count>0));
-        if(row is not null)
+        if(row is not null && (RowOperationRequested.HasDelegate || RestoreRequested.HasDelegate))
         {
             items.Add(new() {Id="object",Title="Объект",Order=600,Children=ObjectMenuItems(row)});
         }
@@ -80,9 +80,9 @@ public partial class UniversalTable
             {
                 items.Add(Item("copy-value","Копировать значение",1000,()=>JS.InvokeVoidAsync("navigator.clipboard.writeText",DisplayText(row,column)).AsTask()));
                 var selected=SelectedKeys.ToArray();
-                items.Add(Item("apply-value","Применить значение к выделенным строкам",1100,()=>ApplyValueAsync(cell,selected),()=>Editable(cell) && selected.Length>0));
+                if(Data.CanEdit(cell.Entity)) items.Add(Item("apply-value","Применить значение к выделенным строкам",1100,()=>ApplyValueAsync(cell,selected),()=>Editable(cell) && selected.Length>0));
             }
-            items.Add(Item("edit-value","Изменить",1200,async()=>
+            if(column.Collection is not null || Data.CanEdit(cell.Entity)) items.Add(Item("edit-value",column.Collection is null ? "Изменить" : "Открыть коллекцию",1200,async()=>
             {
                 if(column.Collection is not null) {await CollectionRequested.InvokeAsync(cell);return;}
                 await ActivateAsync(cell);

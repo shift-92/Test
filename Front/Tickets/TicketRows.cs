@@ -17,6 +17,15 @@ public sealed class ClusterRow : TicketRow
     public override string ToString() => Name;
 }
 
+public sealed class ItSystemRow : TicketRow
+{
+    public string Name { get; set; } = "";
+    public string? Description { get; set; }
+    [PredictField(nameof(VmRow.ItSystemId))] public List<VmRow> Vms { get; } = [];
+    [PredictField(nameof(ClusterRow.ItSystemId))] public List<ClusterRow> Clusters { get; } = [];
+    public override string ToString() => Name;
+}
+
 public sealed class UsageRow : TicketRow
 {
     public string Name { get; set; } = "";
@@ -68,6 +77,13 @@ public static class TicketTables
 {
     public static void Register(TableModelRegistry registry)
     {
+        registry.Add<ItSystemRow>("itSystem", "ИТ-система", (_, c) =>
+        {
+            c.Add(x => x.Name).Title("Имя");
+            c.Add(x => x.Description).Title("Описание");
+            c.Add(x => x.Vms).Title("Виртуальные машины");
+            c.Add(x => x.Clusters).Title("Кластеры");
+        });
         registry.Add<VmRow>("vm", "Vms", (_, c) =>
         {
             c.Add(x => x.Name).Title("Имя").Editable().Definition.Required = true;
