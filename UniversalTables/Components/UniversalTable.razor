@@ -15,7 +15,7 @@
     {
         <div class="ut-toolbar">
             <button type="button" disabled="@(_field is not null)" @onclick="()=>_showColumns=!_showColumns">Столбцы</button>
-            @Toolbar
+            @if(!ReadOnly) { @Toolbar }
         </div>
         @if(_showColumns)
         {
@@ -73,7 +73,7 @@
                             <div @key="key" class="@($"ut-row {changeClass} {(_selection.Contains(key) ? "selected" : "")}")" data-row="@key.Id">
                                 <div class="ut-row-controls">
                                     <button type="button" aria-label="Выделить строку" aria-pressed="@_selection.Contains(key)" disabled="@(_field is not null)" @onclick="e=>SelectRowAsync(key,e)">→</button>
-                                    @if (RowOperationRequested.HasDelegate || RestoreRequested.HasDelegate)
+                                    @if (!ReadOnly && (RowOperationRequested.HasDelegate || RestoreRequested.HasDelegate))
                                     {
                                         <button type="button" aria-label="Операции над строкой" disabled="@(_field is not null || _bulkBusy)" @onclick="e=>OpenRowMenu(key,e)">⋯</button>
                                     }
@@ -154,6 +154,7 @@
     [Parameter] public Func<object,bool>? FixedFilter {get;set;}
     [Parameter] public string Height {get;set;}="600px";
     [Parameter] public RenderFragment? Toolbar {get;set;}
+    [Parameter] public bool ReadOnly {get;set;}
     [Parameter] public EventCallback<CellContext> CollectionRequested {get;set;}
     [Parameter] public EventCallback<CellContext> ReadOnlyCellClicked {get;set;}
     [Parameter] public EventCallback<TableSelection> SelectionChanged {get;set;}
@@ -200,7 +201,7 @@
     private Task TableKeyAsync(KeyboardEventArgs e)=>e.Key=="Escape" ? ClearSelectionAsync() : Task.CompletedTask;
     private void OpenRowMenu(TableKey key,MouseEventArgs e)
     {
-        if(_field is not null || _bulkBusy) return;
+        if(ReadOnly || _field is not null || _bulkBusy) return;
         var row=_rows.FirstOrDefault(row=>Key(row)==key);
         if(row is null) return;
         _hover=null; _hoverHeading=null; _menuX=e.ClientX; _menuY=e.ClientY;
@@ -212,7 +213,7 @@
     [JSInvokable]
     public void CloseRowMenu() { _menuEntity=null; _contextMenu=null; StateHasChanged(); }
     private void MenuKey(KeyboardEventArgs e) { if(e.Key=="Escape") CloseRowMenu(); }
-    private bool CanOperate(TableKey key)=>_field is null && Data.CanEdit(key) && !Data.GetRowState(key).IsDeleted && !Dispatcher.IsBlocked(Data.Context.OperationScope(key));
+    private bool CanOperate(TableKey key)=>!ReadOnly && _field is null && Data.CanEdit(key) && !Data.GetRowState(key).IsDeleted && !Dispatcher.IsBlocked(Data.Context.OperationScope(key));
     private async Task OperateAsync(RowOperation operation)
     {
         if(_menuEntity is not { } key || !CanOperate(key)) return;
@@ -257,8 +258,15 @@
         ColumnMetadata.ApplyLayout(_columns,settings); _engine=new(_columns);
         _subscribed=Data; Data.Invalidated+=Invalidated; _initialized=true; Rebuild();
     }
-    protected override void OnParametersSet()
+    private bool _lastReadOnly;
+    protected override async Task OnParametersSetAsync()
     {
+        if(_lastReadOnly!=ReadOnly)
+        {
+            _lastReadOnly=ReadOnly;
+            CloseRowMenu();
+            if(ReadOnly && _field is not null) await CloseEditorAsync();
+        }
         if(_initialized)
         {
             if(_registration.Type!=ModelType || !ReferenceEquals(_subscribed,Data)) throw new InvalidOperationException("Use @key when replacing table model or data source.");
@@ -418,12 +426,12 @@
     {
         if(_field is not null || _bulkBusy) return;
         if(cell.Column.Collection is not null) { await CollectionRequested.InvokeAsync(cell); return; }
-        if(!cell.Column.CellEditable || Data.GetRowState(cell.Entity).IsDeleted || !Data.CanEdit(cell.Entity) || Data.Context.Mode==TableMode.Ticket && cell.Column.OneToOne)
+        if(ReadOnly || !cell.Column.CellEditable || Data.GetRowState(cell.Entity).IsDeleted || !Data.CanEdit(cell.Entity) || Data.Context.Mode==TableMode.Ticket && cell.Column.OneToOne)
         { await ReadOnlyCellClicked.InvokeAsync(cell); return; }
         if(Dispatcher.IsBlocked(Data.Context.OperationScope(cell.Entity))) { Error("Есть неподтверждённая операция. Сначала выполните сверку."); return; }
         if(_module is null) return;
         var rect=await _module.InvokeAsync<double[]?>("cellRect",_root,cell.Entity.Id.ToString(),cell.Column.Id);
-        if(rect is null) return;
+        if(rect is null || ReadOnly) return;
         var value=cell.Column.Reference is { } reference ? FormDraft.ReadPath(cell.Row,reference.ForeignKeyPath) : cell.Value;
         _editing=cell; _field=new(){Column=cell.Column,OriginalValue=value,Value=value}; _unknown=false;
         _editorStyle=$"left:{N(rect[0])}px;top:{N(rect[1])}px;width:{N(rect[2])}px;min-height:30px";
@@ -433,7 +441,7 @@
     private async Task SaveCellAsync()
     {
         var field=_field; var cell=_editing;
-        if(field is null || cell is null || field.Busy || _unknown) return;
+        if(ReadOnly || field is null || cell is null || field.Busy || _unknown) return;
         if(field.Error is not null) { Error(field.Error); return; }
         if(Equals(field.OriginalValue,field.Value))
         {
@@ -471,6 +479,7 @@
             {
                 Rebuild();
                 Error(ex.Message);
+                if(ReadOnly) await CloseEditorAsync();
             }
             return;
         }
@@ -488,6 +497,7 @@
             Rebuild();
             _unknown=result.Status==DispatchStatus.Unknown;
             Error(result.Message ?? "Изменение отклонено",result.ActionId);
+            if(ReadOnly) await CloseEditorAsync();
         }
     }
     private async Task EditorKeyAsync(KeyboardEventArgs e)

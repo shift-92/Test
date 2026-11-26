@@ -54,14 +54,14 @@
                 @foreach (var type in LiveTableTypes)
                 {
                     <MudTabPanel @key="type" Text="@Registry.Get(type).Title">
-                        <UniversalTable ModelType="type" Data="data" LayoutStore="LayoutStore"
+                        <UniversalTable ReadOnly="true" ModelType="type" Data="data" LayoutStore="LayoutStore"
                                         CollectionRequested="cell => OpenCollection(workspace, cell)" />
                     </MudTabPanel>
                 }
             </MudTabs>
             <TableWorkspace @key="workspace" Controller="workspace">
                 <TableTemplate Context="table">
-                    <UniversalTable @key="table.WindowId" ModelType="table.ModelType" Data="data" LayoutStore="LayoutStore"
+                    <UniversalTable ReadOnly="true" @key="table.WindowId" ModelType="table.ModelType" Data="data" LayoutStore="LayoutStore"
                                     FixedFilter="@(CollectionRelations.FixedFilter(table.ModelType, table.ForeignKey!, table.ParentId!.Value))"
                                     CollectionRequested="cell => OpenCollection(workspace, cell)" />
                 </TableTemplate>
@@ -76,12 +76,16 @@ else
     @if (_session is { } session && _workspace is { } workspace)
     {
         <MudText>Статус: @StatusText(session.Status)</MudText>
-        <MudText>Выберите ячейку для изменения. Правки сохраняются в заявке, а не в рабочей ИТ-системе.</MudText>
+        <label><input type="checkbox" @bind="_readOnly" /> Только для чтения</label>
+        @if (!_readOnly)
+        {
+            <MudText>Выберите ячейку для изменения. Правки сохраняются в заявке, а не в рабочей ИТ-системе.</MudText>
+        }
         <MudTabs @key="session" KeepPanelsAlive="true">
             @foreach (var type in TableTypes)
             {
                 <MudTabPanel @key="type" Text="@Registry.Get(type).Title" Style="@ChangedTabStyle(session.HasTableChanges(type))">
-                    <UniversalTable ModelType="type" Data="session.Data" LayoutStore="LayoutStore"
+                    <UniversalTable ReadOnly="_readOnly" ModelType="type" Data="session.Data" LayoutStore="LayoutStore"
                                     CollectionRequested="cell => OpenCollection(workspace, cell)"
                                     AddRequested="() => workspace.OpenForm(type, ChangeKind.Add)"
                                     RowOperationRequested="request => Operate(workspace, request)"
@@ -97,7 +101,7 @@ else
         <TableWorkspace @key="workspace" Controller="workspace">
             <TableTemplate Context="table">
                 @{ void AddChild() => workspace.OpenForm(table.ModelType, ChangeKind.Add, fixedValues: table.FixedValues); }
-                <UniversalTable @key="table.WindowId" ModelType="table.ModelType" Data="session.Data" LayoutStore="LayoutStore"
+                <UniversalTable ReadOnly="_readOnly" @key="table.WindowId" ModelType="table.ModelType" Data="session.Data" LayoutStore="LayoutStore"
                                 FixedFilter="@(CollectionRelations.FixedFilter(table.ModelType, table.ForeignKey!, table.ParentId!.Value))"
                                 CollectionRequested="cell => OpenCollection(workspace, cell)"
                                 AddRequested="AddChild"
@@ -134,6 +138,7 @@ else
     private static readonly Type[] TableTypes = [typeof(VmRow), typeof(ClusterRow), typeof(RuleRow)];
     private CancellationTokenSource _request = new();
     private bool _busy;
+    private bool _readOnly;
 
     private static string? ChangedTabStyle(bool changed) => changed ? "background-color:#e9b94920;box-shadow:inset 2px 0 #e9b949" : null;
     private static string StatusText(EnumTicketStatus status) => status switch

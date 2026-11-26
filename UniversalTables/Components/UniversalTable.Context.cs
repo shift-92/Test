@@ -56,12 +56,12 @@ public partial class UniversalTable
             await SaveLayoutAsync();
         }));
         items.Add(new() { Id="columns",Title="Видимость колонок",Order=300,Separator=TableMenuSeparator.Bottom,Children= [.. _columns.OrderBy(c=>c.Order).Select(VisibilityMenuItem)] });
-        if(AddRequested.HasDelegate) items.Add(Item("add","Добавить объект",400,()=>AddRequested.InvokeAsync()));
+        if(!ReadOnly && AddRequested.HasDelegate) items.Add(Item("add","Добавить объект",400,()=>AddRequested.InvokeAsync(),()=>!ReadOnly));
         var deleteKeys=SelectedKeys;
-        if(DeleteSelectedRequested.HasDelegate) items.Add(Item("delete-selected","Удалить выделенные",410,()=>DeleteSelectedRequested.InvokeAsync(deleteKeys),
+        if(!ReadOnly && DeleteSelectedRequested.HasDelegate) items.Add(Item("delete-selected","Удалить выделенные",410,()=>DeleteSelectedRequested.InvokeAsync(deleteKeys),
             ()=>deleteKeys.Count>0 && deleteKeys.All(CanOperate)));
         items.Add(Item("ungroup","Отменить все группировки",500,()=>{_groups.Clear();_collapsed.Clear();BuildGroups();return Task.CompletedTask;},()=>_groups.Count>0));
-        if(row is not null && (RowOperationRequested.HasDelegate || RestoreRequested.HasDelegate))
+        if(!ReadOnly && row is not null && (RowOperationRequested.HasDelegate || RestoreRequested.HasDelegate))
         {
             items.Add(new() {Id="object",Title="Объект",Order=600,Children=ObjectMenuItems(row)});
         }
@@ -80,16 +80,17 @@ public partial class UniversalTable
             {
                 items.Add(Item("copy-value","Копировать значение",1000,()=>JS.InvokeVoidAsync("navigator.clipboard.writeText",DisplayText(row,column)).AsTask()));
                 var selected=SelectedKeys.ToArray();
-                if(Data.CanEdit(cell.Entity)) items.Add(Item("apply-value","Применить значение к выделенным строкам",1100,()=>ApplyValueAsync(cell,selected),()=>Editable(cell) && selected.Length>0));
+                if(!ReadOnly && Data.CanEdit(cell.Entity)) items.Add(Item("apply-value","Применить значение к выделенным строкам",1100,()=>ApplyValueAsync(cell,selected),()=>Editable(cell) && selected.Length>0));
             }
-            if(column.Collection is not null || Data.CanEdit(cell.Entity)) items.Add(Item("edit-value",column.Collection is null ? "Изменить" : "Открыть коллекцию",1200,async()=>
+            if(column.Collection is not null || (!ReadOnly && Data.CanEdit(cell.Entity))) items.Add(Item("edit-value",column.Collection is null ? "Изменить" : "Открыть коллекцию",1200,async()=>
             {
                 if(column.Collection is not null) {await CollectionRequested.InvokeAsync(cell);return;}
                 await ActivateAsync(cell);
                 if(_field is not null) {_dialogEditor=true;_editorStyle="left:50%;top:20%;transform:translateX(-50%);width:min(640px,90vw)";}
             },()=>column.Collection is not null ? CollectionRequested.HasDelegate : Editable(cell)));
         }
-        items.AddRange(_customMenu); _menuItems=items; StateHasChanged();
+        if(!ReadOnly) items.AddRange(_customMenu);
+        _menuItems=items; StateHasChanged();
     }
     private IReadOnlyList<TableMenuItem> ObjectMenuItems(object row)
     {
@@ -101,7 +102,7 @@ public partial class UniversalTable
             Item("edit-object","Изменить",100,()=>RowOperationRequested.InvokeAsync(new(row,key,RowOperation.Edit)),()=>RowOperationRequested.HasDelegate && CanOperate(key)),
             Item("delete-object","Удалить",200,()=>RowOperationRequested.InvokeAsync(new(row,key,RowOperation.Delete)),()=>RowOperationRequested.HasDelegate && CanOperate(key)),
             Item("copy-object","Копировать",300,()=>RowOperationRequested.InvokeAsync(new(row,key,RowOperation.Copy)),()=>RowOperationRequested.HasDelegate && CanOperate(key)),
-            Item("restore-object","Восстановить",400,()=>RestoreRequested.InvokeAsync(key),()=>RestoreRequested.HasDelegate && Data.CanRestore(key) && !Dispatcher.IsBlocked(Data.Context.OperationScope(key)))
+            Item("restore-object","Восстановить",400,()=>RestoreRequested.InvokeAsync(key),()=>!ReadOnly && RestoreRequested.HasDelegate && Data.CanRestore(key) && !Dispatcher.IsBlocked(Data.Context.OperationScope(key)))
         ];
     }
     private TableMenuItem VisibilityMenuItem(TableColumn column)
