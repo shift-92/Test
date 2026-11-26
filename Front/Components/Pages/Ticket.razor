@@ -38,13 +38,16 @@
     {
         <MudProgressLinear Indeterminate="true" />
     }
-    else if (_activeId is Guid activeId)
-    {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@TicketUrl(activeId)">Перейти к заявке</MudButton>
-    }
     else
     {
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="CreateAsync">Создать заявку</MudButton>
+        @if (_activeId is Guid activeId)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@TicketUrl(activeId)">Перейти к заявке</MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="CreateAsync">Создать заявку</MudButton>
+        }
         @if (_liveData is { } data && _workspace is { } workspace)
         {
             <MudTabs @key="data" KeepPanelsAlive="true">
@@ -184,11 +187,8 @@ else
                 var activeId = await Editor.FindActiveAsync(ItSystemId, ct);
                 ct.ThrowIfCancellationRequested();
                 _activeId = activeId;
-                if (activeId is null)
-                {
-                    _liveData = SystemTableData.Create(Cache, ItSystemId, Registry);
-                    _workspace = new(Registry, Drafts, _liveData);
-                }
+                _liveData = SystemTableData.Create(Cache, ItSystemId, Registry);
+                _workspace = new(Registry, Drafts, _liveData);
                 _lookupComplete = true;
                 return;
             }
